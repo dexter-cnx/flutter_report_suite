@@ -122,7 +122,6 @@ class _ExampleHomeState extends State<ExampleHome> {
       final bytes = await _escPos.buildQuickReceipt(
         data: _mockData,
         encodingConfig: encodingConfig,
-        includeCut: false,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
