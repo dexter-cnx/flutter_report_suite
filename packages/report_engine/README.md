@@ -1,55 +1,100 @@
+# report_engine
 
-# flutter_offline_report - Production Package
+Offline-first Flutter report engine for rendering template JSON with runtime data to PDF/A4/thermal output, plus direct ESC/POS printing over Bluetooth.
 
-Package สำหรับ Flutter Mobile ที่รับ template + data แล้วสร้าง PDF/พิมพ์ได้เลย Offline 100%
-
-## Features
-- Thermal 58/80mm auto height
-- A4 with header/footer/page break
-- PDF share
-- Thai font support
-- Printer module included
-
-## Usage
+## Public API
 
 ```dart
-import 'package:flutter_offline_report/flutter_offline_report.dart';
+import 'package:report_engine/report_engine.dart';
+```
 
+The package exposes:
+
+- `ReportTemplate`, `ReportElement`, and `PaperConfig`
+- `ReportValueResolver`
+- `PdfRenderService`
+- `TemplateStorageService`
+- `FlutterReportPrinter`
+- `EscPosPrinterService`
+
+## PDF / system printer flow
+
+```dart
 final printer = FlutterReportPrinter();
 
-// 1. Load template (จาก assets หรือ Hive หรือ API)
-final template = jsonDecode(await rootBundle.loadString('assets/templates/thermal_80.json'));
+final bytes = await printer.generatePdf(
+  templateJson: template,
+  data: data,
+);
 
-// 2. Data
-final data = {"shop": {"name": "ร้านผม"}, "items": [...]};
-
-// 3. Generate
-final pdfBytes = await printer.generatePdf(templateJson: template, data: data);
-
-// 4. Print / Preview / Share
 await printer.preview(templateJson: template, data: data);
-await printer.printDirect(templateJson: template, data: data);
-await printer.sharePdf(templateJson: template, data: data, filename: 'receipt.pdf');
+await printer.sharePdf(
+  templateJson: template,
+  data: data,
+  filename: 'receipt.pdf',
+);
 
-// List printers
 final printers = await printer.listPrinters();
+if (printers.isNotEmpty) {
+  await printer.printDirect(
+    printer: printers.first,
+    templateJson: template,
+    data: data,
+  );
+}
 ```
 
-## Package Structure
-```
-lib/
-  flutter_offline_report.dart (export)
-  src/
-    models/report_template.dart
-    services/pdf_render_service.dart
-    services/template_storage_service.dart
-    printer/printer_service.dart
-example/
-  lib/main.dart - ตัวอย่างใช้งานครบ
+## Template storage
+
+```dart
+final storage = TemplateStorageService();
+await storage.init();
+await storage.saveTemplate('receipt', template);
+final cached = await storage.getTemplate('receipt');
 ```
 
-## Example
-cd example
+Templates are JSON-encoded in Hive so the engine remains offline-first and does not require generated Hive adapters.
+
+## ESC/POS Bluetooth flow
+
+```dart
+final escPos = EscPosPrinterService();
+final devices = await escPos.scanPrinters();
+
+if (devices.isNotEmpty) {
+  await escPos.printReceipt(
+    device: devices.first.device,
+    templateJson: template,
+    data: data,
+  );
+}
+```
+
+Bluetooth permissions still need to be declared/configured by the host Android/iOS app according to the platform requirements.
+
+## Template contract
+
+```json
+{
+  "id": "receipt",
+  "version": 1,
+  "paper": {
+    "type": "thermal",
+    "widthMm": 80,
+    "heightMm": 200,
+    "autoHeight": true,
+    "marginMm": 3
+  },
+  "elements": []
+}
+```
+
+`text` elements treat `key` as literal text. Dynamic elements resolve paths such as `{{shop.name}}`. Table elements use `columns` to map list rows to printable cells.
+
+## Tests
+
+```bash
+cd packages/report_engine
 flutter pub get
-flutter run
+flutter test
 ```
