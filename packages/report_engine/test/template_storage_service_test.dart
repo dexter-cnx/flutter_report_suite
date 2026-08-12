@@ -46,20 +46,34 @@ void main() {
     expect(await storage.getTemplate('receipt'), isNull);
   });
 
-  test('renames a template without changing its JSON payload', () async {
+  test('save normalizes storage key and payload id', () async {
+    await storage.saveTemplate('  renamed  ', template);
+
+    final saved = await storage.getTemplate('renamed');
+    expect(saved?['id'], 'renamed');
+    expect(saved?['version'], 1);
+  });
+
+  test('rename updates both storage key and JSON payload id', () async {
     await storage.saveTemplate('receipt', template);
     await storage.renameTemplate('receipt', 'receipt-copy');
 
     expect(await storage.getTemplate('receipt'), isNull);
-    expect(await storage.getTemplate('receipt-copy'), template);
+    final renamed = await storage.getTemplate('receipt-copy');
+    expect(renamed?['id'], 'receipt-copy');
+    expect(renamed?['paper'], template['paper']);
+    expect(renamed?['elements'], template['elements']);
   });
 
-  test('duplicates a template and preserves the source', () async {
+  test('duplicate preserves source and assigns target payload id', () async {
     await storage.saveTemplate('receipt', template);
     await storage.duplicateTemplate('receipt', 'receipt-copy');
 
-    expect(await storage.getTemplate('receipt'), template);
-    expect(await storage.getTemplate('receipt-copy'), template);
+    expect((await storage.getTemplate('receipt'))?['id'], 'receipt');
+    final copy = await storage.getTemplate('receipt-copy');
+    expect(copy?['id'], 'receipt-copy');
+    expect(copy?['paper'], template['paper']);
+    expect(copy?['elements'], template['elements']);
   });
 
   test('rejects duplicate rename and duplicate targets', () async {
@@ -91,5 +105,16 @@ void main() {
       ),
       throwsA(isA<FormatException>()),
     );
+  });
+
+  test('rejects invalid template before saving', () async {
+    await expectLater(
+      storage.saveTemplate(
+        'bad',
+        const <String, dynamic>{'id': 'bad', 'version': 1},
+      ),
+      throwsA(isA<FormatException>()),
+    );
+    expect(await storage.containsTemplate('bad'), isFalse);
   });
 }
