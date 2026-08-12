@@ -37,17 +37,20 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Check formatting
+        id: format
         shell: bash
         run: |
           dart format lib test
-          changed="$(git diff --name-only -- lib test)"
-          if [ -n "$changed" ]; then
-            while IFS= read -r file; do
-              payload="$(base64 -w0 "$file")"
-              echo "::error title=FORMATTED_FILE::$file::$payload"
-            done <<< "$changed"
-            exit 1
-          fi
+          git diff --exit-code -- lib test
+      - name: Upload formatted engine files
+        if: failure() && steps.format.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-report-engine
+          path: |
+            packages/report_engine/lib
+            packages/report_engine/test
+          if-no-files-found: error
       - name: Analyze
         run: flutter analyze
       - name: Run tests
@@ -72,17 +75,20 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Check formatting
+        id: format
         shell: bash
         run: |
           dart format lib test
-          changed="$(git diff --name-only -- lib test)"
-          if [ -n "$changed" ]; then
-            while IFS= read -r file; do
-              payload="$(base64 -w0 "$file")"
-              echo "::error title=FORMATTED_FILE::$file::$payload"
-            done <<< "$changed"
-            exit 1
-          fi
+          git diff --exit-code -- lib test
+      - name: Upload formatted Sunmi files
+        if: failure() && steps.format.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-report-engine-sunmi
+          path: |
+            packages/report_engine_sunmi/lib
+            packages/report_engine_sunmi/test
+          if-no-files-found: error
       - name: Analyze
         run: flutter analyze
       - name: Run tests
@@ -143,16 +149,18 @@ jobs:
       - name: Run tests
         run: flutter test --reporter expanded
       - name: Build Android APK
+        id: example_apk
         shell: bash
         run: |
-          set +e
+          set -o pipefail
           flutter build apk --debug 2>&1 | tee /tmp/example-apk.log
-          status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
-            payload="$(tail -c 12000 /tmp/example-apk.log | base64 -w0)"
-            echo "::error title=EXAMPLE_APK_LOG::$payload"
-            exit "$status"
-          fi
+      - name: Upload example APK failure log
+        if: failure() && steps.example_apk.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-apk-build-log
+          path: /tmp/example-apk.log
+          if-no-files-found: error
 
   web-build:
     name: build • web
