@@ -38,7 +38,11 @@ void main() {
     expect(find.text('Properties'), findsOneWidget);
     expect(find.text('Key / Text'), findsOneWidget);
     expect(find.text('Bold'), findsOneWidget);
-    expect(find.byTooltip('Undo').evaluate().single.widget, isA<IconButton>());
+
+    final undoButton = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.undo),
+    );
+    expect(undoButton.onPressed, isNotNull);
   });
 
   testWidgets('table selection exposes the column editor', (tester) async {
