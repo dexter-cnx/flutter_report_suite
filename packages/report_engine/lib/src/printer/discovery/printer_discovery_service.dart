@@ -1,9 +1,22 @@
+import 'bluetooth_printer_discovery.dart';
 import 'printer_discovery_source.dart';
+import 'system_printer_discovery.dart';
 import 'unified_printer.dart';
 
 class PrinterDiscoveryService {
   const PrinterDiscoveryService({required List<PrinterDiscoverySource> sources})
       : _sources = sources;
+
+  factory PrinterDiscoveryService.standard({
+    Duration bluetoothTimeout = const Duration(seconds: 5),
+  }) {
+    return PrinterDiscoveryService(
+      sources: <PrinterDiscoverySource>[
+        const SystemPrinterDiscovery(),
+        BluetoothPrinterDiscovery(timeout: bluetoothTimeout),
+      ],
+    );
+  }
 
   final List<PrinterDiscoverySource> _sources;
 
