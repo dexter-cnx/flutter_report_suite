@@ -78,6 +78,10 @@ PRE-FLIGHT is complete; Phase 1 work may proceed.
 
 ## 1. Verify and preserve runnable Designer platforms
 
+**Status: ✅ COMPLETED — 2026-08-12**
+
+Maintainer-confirmed verification passed for the existing Designer platform scaffolding. The Web, Android, iOS, Linux, macOS, and Windows projects were preserved rather than regenerated, and the existing six-platform CI build matrix remains a required regression gate.
+
 The current repository already contains Flutter 3.32.7 platform scaffolding for `apps/designer` on:
 
 - Web
@@ -122,6 +126,23 @@ chore(designer): verify Flutter platform projects
 
 ## 2. Production Thai PDF fonts
 
+**Status: 🚧 IN PROGRESS — 2026-08-12**
+
+Implemented on branch `agent/phase-1-foundation-tasks-2-4`:
+
+- registered `assets/fonts/` in `report_engine`
+- changed `PdfRenderService` to resolve `packages/report_engine/assets/fonts/...` before the legacy app-relative path
+- cached loaded regular/bold `pw.Font` instances per renderer
+- standardized expected filenames to `NotoSansThai-Regular.ttf` and `NotoSansThai-Bold.ttf`
+- added the SIL Open Font License and font integration notes
+
+Remaining before this task can be marked complete:
+
+- add the actual Regular/Bold TTF binaries to `packages/report_engine/assets/fonts/`
+- add Thai rendering coverage for `กุ้ง`, `น้ำ`, `สำนักงาน`, and mixed Thai/English/numeric content
+- create a Thai PDF visual-inspection fixture
+- run format/analyze/tests with Flutter 3.32.7 and confirm the bundled package asset lookup from a consuming app
+
 Bundle an open-license Thai font suitable for redistribution.
 
 Preferred:
@@ -162,6 +183,25 @@ feat(pdf): bundle Thai fonts and support Thai rendering
 ```
 
 ## 3. Example application
+
+**Status: 🚧 IN PROGRESS — 2026-08-12**
+
+Implemented on branch `agent/phase-1-foundation-tasks-2-4`:
+
+- retained the existing `FlutterReportPrinter` public facade demonstration
+- retained Thermal 80mm and Thermal 58mm preview flows
+- expanded the A4 sample to generate 30 rows so page-breaking can be exercised
+- exposed Thai PDF preview/share through `PdfPreview`
+- added ESC/POS quick-receipt generation with graceful error handling
+- retained system-printer discovery
+- added a simple template JSON export/copy demonstration
+- clearly labels physical Thai ESC/POS output as hardware-dependent
+
+Remaining before this task can be marked complete:
+
+- provision `packages/report_engine/example/android/` using Flutter-generated scaffolding without overwriting existing example source/assets
+- run `flutter pub get`, `flutter analyze`, and `flutter build apk --debug`
+- complete file-based template import/export if required beyond the current JSON export demonstration
 
 Create or complete:
 
@@ -222,6 +262,20 @@ feat(example): add report engine showcase app
 ```
 
 ## 4. Foundation tests
+
+**Status: 🚧 IN PROGRESS — 2026-08-12**
+
+Implemented on branch `agent/phase-1-foundation-tasks-2-4`:
+
+- `ReportValueResolver` now supports list indexes such as `{{items.0.name}}`
+- resolver tests cover nested paths, deeper paths, missing keys, nulls, invalid/negative/out-of-range indexes, numeric values, boolean values, and `resolveText`
+- PDF tests now cover Thermal 80mm, Thermal 58mm, A4, a 120-row multi-page table, empty data, and missing optional values
+- PDF assertions check the `%PDF-` signature, `%%EOF`, and page-object count rather than only byte length
+
+Remaining before this task can be marked complete:
+
+- add Thai PDF test coverage after the production font binaries are present
+- run format/analyze/test validation on Flutter 3.32.7 and fix any regressions found
 
 Expand `ReportValueResolver` coverage:
 
@@ -779,4 +833,8 @@ In those cases, complete everything else possible and record the blocker explici
 
 ## Next Action
 
-PRE-FLIGHT is complete. Continue with **Phase 1 / Task 1 — Verify and preserve runnable Designer platforms**.
+Continue on branch `agent/phase-1-foundation-tasks-2-4` by finishing the remaining Phase 1 blockers in this order:
+
+1. add the real `NotoSansThai-Regular.ttf` and `NotoSansThai-Bold.ttf` binaries and complete Thai PDF validation/fixture work
+2. provision `packages/report_engine/example/android/` with Flutter-generated scaffolding and validate the example APK build
+3. run the full Task 4 format/analyze/test suite, including Thai PDF coverage, then mark Tasks 2–4 complete only after those gates pass
