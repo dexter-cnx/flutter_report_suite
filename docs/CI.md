@@ -14,34 +14,54 @@ The workflow runs on:
 
 Concurrent runs for the same ref are cancelled when a newer commit is pushed.
 
-## Jobs
+## Quality jobs
 
 ### `report-engine`
 
 Working directory: `packages/report_engine`
 
-Checks:
-
 ```bash
 flutter pub get
 flutter analyze
-flutter test --reporter expanded
+flutter test --coverage --reporter expanded
 ```
 
-This is the main quality gate because `report_engine` contains the reusable template model, resolver, PDF renderer, storage layer, printer facade, and ESC/POS implementation.
+Coverage includes template parsing/serialization, nested value resolution, PDF rendering, and printer facade delegation.
 
-### `designer`
+### `designer-quality`
 
 Working directory: `apps/designer`
 
-Checks:
-
 ```bash
 flutter pub get
 flutter analyze
+flutter test --coverage --reporter expanded
 ```
 
-The Designer currently contains source and assets but does not yet include generated Flutter platform folders such as `web/`, `android/`, `ios/`, `macos/`, `windows/`, and `linux/`. For that reason CI intentionally does not run `flutter build web` or platform builds yet. A build job should be added after the application receives normal Flutter platform scaffolding.
+The widget suite covers Designer startup, authoring controls, element creation/selection, table defaults, and JSON export behavior. Tests pin a desktop-sized viewport so responsive layout does not make interactions flaky on headless CI.
+
+## Platform build jobs
+
+The Designer contains Flutter-generated platform scaffolding for all supported targets:
+
+- Android
+- iOS
+- Web
+- macOS
+- Windows
+- Linux
+
+CI performs compile-level smoke validation on every target:
+
+| Job | Runner | Command |
+| --- | --- | --- |
+| `web-build` | Ubuntu | `flutter build web --release` |
+| `android-build` | Ubuntu + JDK 17 | `flutter build apk --debug` |
+| `linux-build` | Ubuntu | `flutter build linux --release` |
+| `windows-build` | Windows | `flutter build windows --release` |
+| `apple-builds` | macOS | `flutter build macos --release` and `flutter build ios --simulator --debug` |
+
+The iOS job builds for the simulator and does not require code signing.
 
 ## Local equivalent
 
@@ -51,21 +71,36 @@ From repository root:
 cd packages/report_engine
 flutter pub get
 flutter analyze
-flutter test --reporter expanded
+flutter test --coverage --reporter expanded
 
 cd ../../apps/designer
 flutter pub get
 flutter analyze
+flutter test --coverage --reporter expanded
+flutter build web --release
 ```
 
-## Recommended next CI stages
+Run native builds on their host operating system when practical:
 
-After platform scaffolding and Designer tests are added, extend CI with:
+```bash
+flutter build apk --debug
+flutter build linux --release
+flutter build windows --release
+flutter build macos --release
+flutter build ios --simulator --debug
+```
 
-1. Designer widget tests.
-2. `flutter build web --release` smoke build.
-3. Android debug APK build.
-4. Package coverage upload.
-5. Optional golden tests for Designer canvas rendering.
+## Platform scaffolding policy
 
-Do not add platform build gates before the corresponding platform directories and platform-specific plugin configuration exist; otherwise CI failures will reflect incomplete project scaffolding rather than application regressions.
+`apps/designer/android`, `ios`, `web`, `macos`, `windows`, and `linux` were generated with Flutter `3.32.7` using `flutter create`. Application-owned source (`lib/`), assets, and the existing `pubspec.yaml` remain the source of truth.
+
+When upgrading Flutter substantially, regenerate or migrate platform files using Flutter tooling rather than hand-editing generated build-system files unless a platform-specific customization requires it.
+
+## Future quality gates
+
+Useful next additions are:
+
+1. Golden tests for canvas and property-panel layouts.
+2. Integration tests for import/export round trips.
+3. Printer adapter contract tests with mocked BLE/system-printer boundaries.
+4. Coverage reporting/upload once a repository-wide threshold is agreed.
