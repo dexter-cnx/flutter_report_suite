@@ -103,7 +103,13 @@ class InspectorSection extends StatefulWidget {
 }
 
 class _InspectorSectionState extends State<InspectorSection> {
-  late bool _expanded = widget.initiallyExpanded;
+  late bool _expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.initiallyExpanded;
+  }
 
   @override
   Widget build(BuildContext context) {
