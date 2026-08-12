@@ -195,12 +195,12 @@ File:
 apps/designer/lib/pages/designer_page.dart
 ```
 
-The desktop workspace now uses reusable design-system primitives:
+The desktop and medium workspaces use reusable design-system primitives:
 
 ```text
 DesignerAppShell
 ├── toolbar
-├── Elements panel
+├── Elements panel (fixed on desktop, collapsible on medium)
 ├── CanvasViewport
 │   ├── CanvasRuler (vertical)
 │   └── canvas column
@@ -217,9 +217,11 @@ The page still delegates schema/state behavior to `DesignerDocumentController`; 
 
 ### Responsive behavior
 
-The fixed desktop shell is used at widths `>= 1280`.
+The fixed desktop shell is used at widths `>= 1280` with both Elements and Inspector panels visible.
 
-Below 1280 px, the page uses the compact composition instead of reserving fixed 264 px + 320 px side panels. This keeps the canvas as the priority surface in the 1024–1279 range and on smaller screens.
+For widths `1024–1279`, the Designer still uses `DesignerAppShell`, but the 264 px Elements panel is collapsed by default. A `Toggle Elements` toolbar action lets the user reveal/hide it while the 320 px Inspector remains available. This honors the canvas-priority contract without removing access to authoring tools.
+
+Below 1024 px, the compact layout places the canvas above the editing panels instead of reserving fixed desktop side-panel widths.
 
 The entire custom workspace is wrapped in `SafeArea`, because replacing a platform `AppBar` with a custom toolbar means the framework no longer automatically protects the title/actions from mobile status bars or notches.
 
@@ -232,6 +234,12 @@ Undo
 Redo
 Preview PDF
 Template actions
+```
+
+Medium widths additionally expose:
+
+```text
+Toggle Elements
 ```
 
 Template actions continue to expose:
@@ -596,7 +604,8 @@ Coverage protects:
 - selection handle count/size behavior
 - selected child sizing
 - live DesignerPage use of shell/canvas primitives
-- compact layout below 1280 px
+- medium-width Elements panel collapsed by default and toggleable
+- compact layout below 1024 px
 - SafeArea presence for the custom toolbar
 - add/select/edit behavior
 - table-column editor
