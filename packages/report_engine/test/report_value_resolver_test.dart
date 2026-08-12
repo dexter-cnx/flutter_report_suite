@@ -6,6 +6,8 @@ void main() {
   const data = <String, dynamic>{
     'shop': {
       'name': 'Dexter Coffee',
+      'branch': 'นิมมาน',
+      'tel': '081-xxx-xxxx',
       'address': {
         'city': 'Chiang Mai',
       },
@@ -58,5 +60,23 @@ void main() {
   test('resolveText stringifies resolved values', () {
     expect(resolver.resolveText('{{total}}', data), '215');
     expect(resolver.resolveText('{{paid}}', data), 'true');
+  });
+
+  test('resolveText interpolates mixed literal and placeholder text', () {
+    expect(
+      resolver.resolveText('สาขา {{shop.branch}} Tel {{shop.tel}}', data),
+      'สาขา นิมมาน Tel 081-xxx-xxxx',
+    );
+    expect(
+      resolver.resolveText('ยอดรวม {{total}} บาท / paid={{paid}}', data),
+      'ยอดรวม 215 บาท / paid=true',
+    );
+  });
+
+  test('resolveText replaces missing and null placeholders with empty text', () {
+    expect(
+      resolver.resolveText('note={{note}} / missing={{shop.missing}}', data),
+      'note= / missing=',
+    );
   });
 }
