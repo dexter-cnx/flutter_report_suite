@@ -19,7 +19,7 @@ env:
 
 jobs:
   report-engine-quality:
-    name: report_engine • format + analyze + test
+    name: report_engine • format + analyze + test + publish dry-run
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -55,6 +55,8 @@ jobs:
         run: flutter analyze
       - name: Run tests
         run: flutter test --coverage --reporter expanded
+      - name: Verify pub.dev package
+        run: flutter pub publish --dry-run
 
   report-engine-sunmi-quality:
     name: report_engine_sunmi • format + analyze + test
