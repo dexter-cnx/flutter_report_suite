@@ -1,6 +1,11 @@
 library report_engine;
 
 export 'src/models/report_template.dart';
+export 'src/printer/discovery/bluetooth_printer_discovery.dart';
+export 'src/printer/discovery/printer_discovery_service.dart';
+export 'src/printer/discovery/printer_discovery_source.dart';
+export 'src/printer/discovery/system_printer_discovery.dart';
+export 'src/printer/discovery/unified_printer.dart';
 export 'src/printer/encoding/esc_pos_encoding_config.dart';
 export 'src/printer/encoding/esc_pos_text_encoder.dart';
 export 'src/printer/encoding/thai_encoding.dart';
