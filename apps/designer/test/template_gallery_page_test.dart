@@ -32,6 +32,14 @@ void main() {
 
     expect(find.textContaining('Report Designer'), findsOneWidget);
     expect(find.textContaining('-copy'), findsOneWidget);
-    expect(find.text('Add Element'), findsOneWidget);
+
+    // 1200 px uses the medium workspace, where Elements is collapsed by
+    // default so the canvas keeps priority. Confirm the panel remains
+    // available through the toolbar toggle.
+    final toggle = find.byTooltip('Toggle Elements');
+    expect(toggle, findsOneWidget);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(find.text('Elements'), findsOneWidget);
   });
 }
