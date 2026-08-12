@@ -126,6 +126,48 @@ void main() {
     expect(pageObjectCount(bytes), greaterThan(1));
   });
 
+  test('renders Thai and mixed Thai English numeric text with bundled fonts', () async {
+    final bytes = await PdfRenderService().render(
+      documentTemplate(
+        type: 'pdf',
+        widthMm: 80,
+        heightMm: 120,
+        elements: [
+          {
+            'id': 'thai-regular',
+            'type': 'dynamic_text',
+            'key': '{{thaiRegular}}',
+            'x': 0,
+            'y': 0,
+            'w': 70,
+            'h': 8,
+            'style': {'fontSize': 11},
+          },
+          {
+            'id': 'thai-bold',
+            'type': 'dynamic_text',
+            'key': 'สำนักงาน {{office}} / Invoice {{invoiceNo}} / {{total}} บาท',
+            'x': 0,
+            'y': 10,
+            'w': 70,
+            'h': 8,
+            'style': {'fontSize': 11, 'bold': true},
+          },
+        ],
+      ),
+      const {
+        'thaiRegular': 'กุ้ง น้ำ สำนักงาน',
+        'office': 'เชียงใหม่',
+        'invoiceNo': 'INV-2026-001',
+        'total': 1234.50,
+      },
+    );
+
+    expectValidPdf(bytes);
+    expect(pageObjectCount(bytes), greaterThanOrEqualTo(1));
+    expect(bytes.length, greaterThan(1000));
+  });
+
   test('renders empty data without corrupting the PDF', () async {
     final bytes = await PdfRenderService().render(
       documentTemplate(type: 'pdf', widthMm: 80, heightMm: 120),
