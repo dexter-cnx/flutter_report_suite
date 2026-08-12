@@ -1,6 +1,6 @@
 # Code Walkthrough
 
-This walkthrough describes the production architecture of `flutter_report_suite` after Phase 4 hardening. It focuses on the boundaries that should remain stable as the project moves toward v1.0.0.
+This document explains the current production architecture of `flutter_report_suite`, with emphasis on the Designer UI migration, shared template contract, PDF/ESC-POS rendering boundaries, persistence, hardware adapters, and CI gates.
 
 ## 1. Repository map
 
@@ -9,6 +9,13 @@ flutter_report_suite/
 ├── .github/workflows/ci.yml
 ├── apps/
 │   └── designer/
+│       ├── assets/templates/
+│       ├── lib/
+│       │   ├── controllers/
+│       │   ├── design_system/
+│       │   ├── pages/
+│       │   └── services/
+│       └── test/
 ├── packages/
 │   ├── report_engine/
 │   │   ├── assets/fonts/
@@ -20,11 +27,10 @@ flutter_report_suite/
 │       ├── lib/
 │       └── test/
 └── docs/
+    ├── design/
     ├── PROJECT_HANDOFF.md
     ├── CODE_WALKTHROUGH.md
-    ├── PRINTER_COMPATIBILITY.md
-    ├── PHASE3_SUNMI_ADAPTER_AUDIT.md
-    └── PHASE3_TASK9_11_VALIDATION.md
+    └── PRINTER_COMPATIBILITY.md
 ```
 
 Dependency direction:
@@ -37,7 +43,7 @@ report_engine
 report_engine_sunmi
 ```
 
-`report_engine` stays cross-platform. `report_engine_sunmi` is an optional Android-specific integration package so Sunmi dependencies do not contaminate Web, desktop, or iOS consumers.
+`report_engine` stays cross-platform. `report_engine_sunmi` is an optional Android integration so Sunmi dependencies do not contaminate Web, desktop, or iOS consumers.
 
 ---
 
@@ -63,13 +69,13 @@ Geometry is stored in physical millimeters:
 
 ```text
 stored geometry       = millimeters
-Designer presentation = millimeters × zoom
+Designer presentation = millimeters × canvas scale × zoom
 PDF geometry          = millimeters → PDF points
 ```
 
-This is why Designer zoom does not change persisted document geometry.
+This invariant is critical: changing Designer zoom must never mutate persisted geometry.
 
-A template can contain static text, dynamic text, lines, tables, QR codes, and barcodes. The same JSON contract is consumed by PDF and ESC/POS paths.
+The template model supports static text, dynamic text, lines, tables, QR codes, and barcodes. PDF and ESC/POS rendering consume the same contract.
 
 ## 3. Value resolution
 
@@ -79,14 +85,7 @@ File:
 packages/report_engine/lib/src/services/report_value_resolver.dart
 ```
 
-The resolver supports:
-
-- nested map paths
-- list indexes
-- interpolation
-- null/missing values
-- invalid indexes
-- numeric and boolean values
+The resolver supports nested maps, list indexes, interpolation, primitive values, missing values, and invalid indexes.
 
 Typical expressions:
 
@@ -96,30 +95,235 @@ resolver.resolve('{{items.0.name}}', data);
 resolver.resolveText('Invoice {{invoiceNo}}', data);
 ```
 
-Keeping resolution in one service prevents PDF and ESC/POS semantics from drifting apart.
+Centralizing this behavior prevents PDF and ESC/POS output from interpreting bindings differently.
 
-## 4. Designer responsibilities
+## 4. Designer document state
 
-`apps/designer` authors the shared template model and provides:
+File:
 
-- built-in template gallery
-- save/load with Hive
-- Save As, rename, duplicate, delete
-- JSON import/export/share
-- table-column editor
-- 5mm snap-to-grid
-- center guides and rulers
-- 50%–200% zoom
-- undo/redo
-- keyboard shortcuts and nudging
+```text
+apps/designer/lib/controllers/designer_document_controller.dart
+```
 
-The Designer is a template-authoring application. Rendering and hardware-specific behavior remain in the engine packages.
+`DesignerDocumentController` owns document behavior rather than visual styling. It is responsible for operations such as:
+
+- selection
+- add/delete element
+- move/resize
+- interactive drag transactions
+- 5 mm snapping
+- zoom state
+- paper configuration
+- table-column metadata
+- undo/redo history
+- loading/replacing a template
+
+The UI calls controller operations; it should not duplicate millimeter math or history logic.
+
+Grouped drag interactions follow this pattern:
+
+```text
+pointer down
+→ beginInteraction()
+→ moveSelectedInteractive(...) × N
+→ endInteraction()
+→ one undo transaction
+```
+
+That prevents every pointer delta from becoming a separate undo step.
+
+## 5. Designer UI design system
+
+The normalized Flutter UI system lives in:
+
+```text
+apps/designer/lib/design_system/
+├── design_system.dart
+├── designer_colors.dart
+├── designer_typography.dart
+├── designer_spacing.dart
+├── designer_radius.dart
+├── designer_layout.dart
+├── designer_elevation.dart
+├── designer_theme.dart
+├── designer_controls.dart
+├── designer_shell.dart
+└── canvas_primitives.dart
+```
+
+The design handoff is normalized in `docs/design/`; generated Stitch HTML is reference material, while the normalized Markdown specs and Flutter tokens are the implementation source of truth.
+
+Canonical tokens include:
+
+```text
+primary             #6366F1
+toolbar height       56 px
+left panel width    264 px
+inspector width     320 px
+status bar height    32 px
+selection border      1 px
+resize handle         8 px
+```
+
+`DesignerTheme.light()` applies the shared theme instead of each page creating independent Material styling.
+
+## 6. Shared Designer controls
+
+`designer_controls.dart` contains reusable editing primitives such as:
+
+```text
+ToolbarButton
+PanelHeader
+InspectorSection
+PropertyInput
+NumberPropertyInput
+PropertyDropdown
+PropertyToggle
+ZoomControl
+InlineAlert
+```
+
+Property text inputs are designed to stay synchronized with model updates such as selection changes, undo, and document loading. Compact controls use compact-specific text metrics/padding so the 28 px control contract does not clip text.
+
+The Designer does not force a non-bundled Inter font. Platform/default typography remains in use until a redistribution-safe font asset is explicitly bundled and registered.
+
+## 7. Live `DesignerPage` composition
+
+File:
+
+```text
+apps/designer/lib/pages/designer_page.dart
+```
+
+The desktop workspace now uses reusable design-system primitives:
+
+```text
+DesignerAppShell
+├── toolbar
+├── Elements panel
+├── CanvasViewport
+│   ├── CanvasRuler (vertical)
+│   └── canvas column
+│       ├── CanvasRuler (horizontal)
+│       └── CanvasPage
+│           ├── CanvasGuideOverlay
+│           └── CanvasSelectionOverlay × element
+├── Inspector
+└── DesignerStatusBar
+    └── ZoomControl
+```
+
+The page still delegates schema/state behavior to `DesignerDocumentController`; the migration is primarily presentation and composition.
+
+### Responsive behavior
+
+The fixed desktop shell is used at widths `>= 1280`.
+
+Below 1280 px, the page uses the compact composition instead of reserving fixed 264 px + 320 px side panels. This keeps the canvas as the priority surface in the 1024–1279 range and on smaller screens.
+
+The entire custom workspace is wrapped in `SafeArea`, because replacing a platform `AppBar` with a custom toolbar means the framework no longer automatically protects the title/actions from mobile status bars or notches.
+
+### Toolbar behavior
+
+The custom toolbar preserves existing actions:
+
+```text
+Undo
+Redo
+Preview PDF
+Template actions
+```
+
+Template actions continue to expose:
+
+```text
+New
+Save
+Save As
+Rename
+Load
+Duplicate
+Delete
+Import JSON
+Export JSON
+Share JSON
+View JSON
+```
+
+### Keyboard behavior
+
+Existing shortcuts remain controller-backed:
+
+```text
+Ctrl/Cmd + Z          undo
+Ctrl/Cmd + Shift + Z  redo
+Delete/Backspace      delete selection
+Arrow keys            nudge 1 mm
+Shift + Arrow keys    nudge 5 mm
+```
+
+The design spec may describe future shortcuts, but UI/documentation should not claim unsupported shortcuts as implemented.
+
+## 8. Canvas primitives
+
+File:
+
+```text
+apps/designer/lib/design_system/canvas_primitives.dart
+```
+
+### `CanvasViewport`
+
+Owns workspace presentation and pan/overflow behavior. It does not own report geometry.
+
+### `CanvasPage`
+
+Receives explicit scaled width/height. Its visual border is painted as an overlay so the border does not reduce the printable child's coordinate space.
+
+For example, a requested 240 × 600 canvas remains a full 240 × 600 layout region for its child.
+
+### `CanvasRuler`
+
+Ruler labels are expressed in millimeters and positioned with the current scale. Ruler rendering is presentation only; persisted coordinates remain millimeters.
+
+### `CanvasGuideOverlay`
+
+Draws visual center guides independently from report elements.
+
+### `CanvasSelectionOverlay`
+
+The selected child remains non-positioned inside the overlay so the child establishes the overlay size. Only resize handles are positioned. This prevents a selected element from expanding to the remaining `Stack` constraints and intercepting neighboring elements.
+
+## 9. Elements and Inspector panels
+
+The left side uses normalized `PanelHeader` and `PropertyDropdown` components for Elements/Document sections while retaining the existing add-element commands.
+
+The right Inspector has moved into the canonical 320 px shell. The current migration intentionally preserves existing field behavior; deeper conversion of every inspector field into `PropertyInput`, `NumberPropertyInput`, `PropertyToggle`, and structured `InspectorSection` components is the next UI phase.
+
+Table column editing remains model-compatible with existing metadata. Stitch-only concepts such as merged cells or richer pagination must not be exposed until the report model and renderer support them.
+
+## 10. Template lifecycle
+
+`TemplateStorageService` provides local Hive persistence.
+
+Designer lifecycle:
+
+```text
+Create
+→ Edit
+→ Save / Save As
+→ Load
+→ Rename / Duplicate / Delete
+→ Export / Import / Share JSON
+```
+
+Built-in gallery templates are treated as immutable sources; opening one creates an editable working copy.
 
 ---
 
 # PDF STACK
 
-## 5. `PdfRenderService`
+## 11. `PdfRenderService`
 
 File:
 
@@ -140,10 +344,10 @@ The service:
 3. resolves runtime data
 4. selects thermal or paged rendering
 5. converts millimeters to PDF points
-6. builds tables/text/barcodes
+6. builds text/tables/barcodes
 7. returns PDF bytes
 
-Bundled Thai fonts:
+Bundled Thai fonts live under:
 
 ```text
 packages/report_engine/assets/fonts/
@@ -151,44 +355,19 @@ packages/report_engine/assets/fonts/
 └── NotoSansThai-Bold.ttf
 ```
 
-Package-aware asset loading allows these fonts to work when `report_engine` is consumed by another Flutter application.
+Package-aware asset loading keeps Thai rendering available when `report_engine` is consumed by another Flutter application.
 
-## 6. Thermal PDF
+## 12. Thermal and paged PDF
 
-For `paper.type == 'thermal'`, width comes from `paper.widthMm` and the page uses automatic content height.
+Thermal pages use configured physical width with automatic content height. Regression tests protect both 80 mm and 58 mm receipt geometry.
 
-Regression coverage now protects both supported receipt widths:
+Paged/A4 output uses `pw.MultiPage`. Tests cover page geometry, long invoice tables, pagination, and Thai invoice content.
 
-```text
-80mm
-58mm
-```
+Stable regression assertions target PDF structure/geometry rather than raw whole-file byte equality because timestamps and object metadata may legitimately change.
 
-The tests validate stable PDF properties rather than raw byte identity:
+## 13. Tables
 
-- `%PDF-` header
-- `%%EOF`
-- page-object count
-- `/MediaBox` page width
-
-This catches accidental paper-width regressions without depending on mutable PDF metadata.
-
-## 7. Paged/A4 PDF
-
-Paged documents use `pw.MultiPage`. A4 templates use `PdfPageFormat.a4`.
-
-The renderer also generates a footer containing print time and page number. Because print time is dynamic, whole-file PDF byte equality is intentionally not used as the regression strategy.
-
-Phase 4 regression tests cover:
-
-- A4 width/height through `/MediaBox`
-- invoice table with more than 25 rows
-- multi-page pagination
-- Thai A4 invoice with Thai table labels and rows
-
-## 8. Tables
-
-Table column metadata from Designer is honored by the PDF renderer:
+Designer table metadata is consumed by PDF rendering:
 
 ```json
 {
@@ -199,54 +378,42 @@ Table column metadata from Designer is honored by the PDF renderer:
 }
 ```
 
-Column widths are converted to flex weights and alignments are applied per column.
+Widths become flex weights and alignment is applied per column.
 
-## 9. System printing facade
+## 14. System printing facade
 
-File:
+`FlutterReportPrinter` is the high-level PDF/system-printer facade. It covers PDF generation, preview/share, system printing, and system printer listing through the `printing` package.
 
-```text
-packages/report_engine/lib/src/printer/printer_service.dart
-```
-
-`FlutterReportPrinter` is the high-level PDF/system-printer facade. It covers PDF generation, preview/share, system printing, and system-printer listing through the `printing` package.
-
-System printing and raw ESC/POS thermal printing are separate paths.
+System printing and raw ESC/POS printing are separate paths.
 
 ---
 
 # ESC/POS STACK
 
-## 10. Architectural boundary
-
-The printer stack is intentionally layered:
+## 15. Architectural boundary
 
 ```text
 Template + data
       ↓
-Rendering
+EscPosRenderer
       ↓
 ESC/POS bytes
       ↓
-Transport
+EscPosTransport
       ↓
 Physical printer
 ```
 
-Optional hardware operations sit beside transport:
+Optional operations are explicit capabilities:
 
 ```text
 CutterCapability
 CashDrawerCapability
 ```
 
-Core rule:
+Rendering produces bytes. Transport sends bytes. Hardware capabilities perform device-specific operations.
 
-> Rendering produces bytes. Transport sends bytes. Hardware capabilities perform device-specific operations.
-
-`PdfRenderService` does not issue printer hardware commands, and `EscPosRenderer` does not implicitly cut paper.
-
-## 11. `EscPosRenderer`
+## 16. `EscPosRenderer`
 
 File:
 
@@ -254,35 +421,13 @@ File:
 packages/report_engine/lib/src/printer/rendering/esc_pos_renderer.dart
 ```
 
-Responsibilities:
+Responsibilities include resolving fields and rendering text, lines, tables, QR/barcode content, quick receipts, and Thai encoding/raster strategies.
 
-- convert template + data into ESC/POS bytes
-- resolve dynamic fields
-- render text, lines, tables, QR and barcode content
-- choose Thai code-page or raster strategy
-- render quick receipts
+It does not own Bluetooth connection lifecycle, Sunmi service binding, cutter commands, or drawer commands.
 
-Non-responsibilities:
+## 17. Thai encoding
 
-- Bluetooth connection lifecycle
-- USB/network connection lifecycle
-- Sunmi service binding
-- cutter commands
-- cash-drawer commands
-
-## 12. Thai encoding configuration
-
-Core strategies:
-
-```dart
-enum ThaiEncoding {
-  tis620,
-  cp874,
-  rasterImage,
-}
-```
-
-Valid public construction paths are intentionally constrained:
+Supported configuration paths include:
 
 ```dart
 EscPosEncodingConfig.tis620(codeTable: printerSpecificTable)
@@ -290,73 +435,23 @@ EscPosEncodingConfig.cp874(codeTable: printerSpecificTable)
 EscPosEncodingConfig.raster()
 ```
 
-A TIS-620 or CP874 configuration cannot be constructed without an explicit code-table number. This invariant is structural and remains valid in release builds where Dart assertions are disabled.
+TIS-620/CP874 require an explicit printer code-table number. Printer table numbers are firmware-specific and must not be generalized from one device.
 
-Code-table numbers are printer-specific. Do not treat a table number verified on one ESC/POS clone as a universal default.
+Rasterized Thai uses Flutter text shaping with bundled Noto Sans Thai, converts the rendered image to monochrome pixels, packs bits, and emits ESC/POS raster bytes. This is the safest fallback when code-page mapping is unknown.
 
-## 13. `EscPosTextEncoder`
+## 18. Quick receipt layout
 
-The text encoder is pure conversion logic and has no transport dependency.
-
-Code-page paths emit the printer code-table selection followed by encoded bytes. Tests cover:
+Quick receipts preserve semantic 8/2/2 proportions:
 
 ```text
-กุ้ง
-น้ำ
-ยอดรวม
-mixed Thai/English
-Thai numerals
-CP874 extensions
-unsupported-character replacement
+item name = 8 units, left
+quantity  = 2 units, center
+price     = 2 units, right
 ```
 
-Raster mode is handled by the rasterizer instead of pretending raster content is a single-byte character encoding.
+Equivalent semantics are maintained across legacy, code-page, and raster paths.
 
-## 14. Rasterized Thai
-
-File:
-
-```text
-packages/report_engine/lib/src/printer/rendering/esc_pos_rasterizer.dart
-```
-
-Flow:
-
-```text
-Thai text
-   ↓
-TextPainter + bundled Noto Sans Thai
-   ↓
-RGBA image
-   ↓
-monochrome threshold
-   ↓
-bit packing
-   ↓
-ESC/POS raster bytes
-```
-
-Raster output is the safest fallback when a printer's Thai code-page mapping is unknown or unreliable.
-
-## 15. Quick-receipt 8/2/2 layout
-
-Quick receipts preserve these semantic columns:
-
-```text
-item name = 8 units, left aligned
-quantity  = 2 units, centered
-price     = 2 units, right aligned
-```
-
-The legacy generator, code-page renderer, and raster renderer all preserve equivalent layout semantics. This avoids long item names pushing quantity/price into arbitrary positions.
-
-## 16. Transport contract
-
-File:
-
-```text
-packages/report_engine/lib/src/printer/transport/esc_pos_transport.dart
-```
+## 19. Transport contract
 
 ```dart
 abstract interface class EscPosTransport {
@@ -364,52 +459,21 @@ abstract interface class EscPosTransport {
 }
 ```
 
-Current implementations include BLE in core and Sunmi embedded transport in the companion package.
+Core currently contains BLE transport support. The companion Sunmi package supplies embedded transport. Other transports can implement the same contract.
 
-Future adapters can implement the same contract for:
+Important limitation: `flutter_blue_plus` is BLE only; it does not provide Bluetooth Classic support.
 
-- Bluetooth Classic
-- USB
-- TCP/network
-- other embedded printer SDKs
+## 20. `EscPosPrinterService`
 
-## 17. BLE boundary
+The service orchestrates template parsing, rendering, transport, and optional capabilities.
 
-Core BLE support uses `flutter_blue_plus`.
-
-Important limitation:
-
-> `flutter_blue_plus` supports Bluetooth Low Energy only. It does not make Bluetooth Classic thermal printers compatible.
-
-Bluetooth Classic devices require a different adapter.
-
-## 18. `EscPosPrinterService`
-
-The service orchestrates rendering, transport, and optional hardware capabilities.
-
-Conceptually:
-
-```text
-parse template
-   ↓
-EscPosRenderer
-   ↓
-bytes
-   ↓
-EscPosTransport.send
-   ↓
-optional CutterCapability.cutPaper
-```
-
-When cutting is requested but no cutter capability is available, the service fails before sending the payload. This prevents a partial-success state where printing occurred but the requested hardware operation could never be completed.
+If a requested cutter operation is unavailable, the service fails before sending the print payload. This avoids a partial-success state where printing succeeds but a mandatory hardware action cannot run.
 
 ---
 
-# DISCOVERY
+# DISCOVERY AND HARDWARE
 
-## 19. Unified printer model
-
-Core connection types:
+## 21. Unified printer model
 
 ```dart
 enum PrinterConnectionType {
@@ -421,36 +485,15 @@ enum PrinterConnectionType {
 }
 ```
 
-`UnifiedPrinter` exposes domain-safe fields such as ID, name, connection type, and metadata. Raw plugin objects are deliberately not exposed.
+`UnifiedPrinter` exposes domain-safe identity/connection metadata instead of raw plugin objects.
 
-## 20. Discovery composition
+`PrinterDiscoveryService` composes discovery sources, isolates source failures, filters invalid IDs, deduplicates, orders results deterministically, and returns immutable output.
 
-Discovery sources implement a common interface and are composed by `PrinterDiscoveryService`.
+The presence of enum values such as `usb` or `network` is an extension point and does not imply generic built-in raw USB/TCP discovery.
 
-Current built-in sources:
+## 22. Cutter and cash drawer
 
-- system printer discovery
-- Bluetooth LE discovery
-
-The service provides:
-
-- source exception isolation
-- blank-ID filtering
-- deterministic IDs where available
-- deduplication
-- deterministic ordering
-- immutable results
-- optional additional discovery sources
-
-The enum values `usb` and `network` are extension points; they do not imply built-in generic USB/TCP discovery already exists.
-
----
-
-# HARDWARE CAPABILITIES
-
-## 21. Cutter and cash drawer
-
-Core contracts:
+Core capability contracts are explicit:
 
 ```dart
 abstract interface class CutterCapability {
@@ -463,13 +506,13 @@ abstract interface class CashDrawerCapability {
 }
 ```
 
-Capability presence is explicit. Adapters should implement only operations known to be supported by the target hardware profile.
+Adapters implement only capabilities known to be supported by their verified hardware profile.
 
 ---
 
 # SUNMI COMPANION PACKAGE
 
-## 22. Package boundary
+## 23. Package boundary
 
 Sunmi support lives in:
 
@@ -477,80 +520,51 @@ Sunmi support lives in:
 packages/report_engine_sunmi
 ```
 
-This isolates the Android-only `sunmi_printer_plus` dependency from cross-platform core.
+`SunmiPrinterBridge` wraps plugin operations and is injectable, allowing adapter tests to run against a fake bridge without physical hardware.
 
-## 23. `SunmiPrinterBridge`
+`SunmiHardwareProfile` defaults to print-only. Cutter/drawer capability interfaces appear only when the host supplies a profile that enables them.
 
-The bridge wraps plugin operations such as:
-
-```text
-printEscPos
-cutPaper
-openDrawer
-isDrawerOpen
-getId
-getType
-getVersion
-rebindPrinter
-```
-
-Tests inject a fake bridge so adapter behavior can be exercised without physical Sunmi hardware.
-
-## 24. `SunmiHardwareProfile`
-
-Default behavior is print-only.
-
-Optional hardware is exposed only when the host provides a verified profile:
-
-```dart
-const SunmiHardwareProfile(
-  supportsCutter: true,
-  supportsCashDrawer: false,
-)
-```
-
-The adapter factory returns implementations whose runtime interfaces match the supplied profile. Unsupported cutter/drawer interfaces are therefore absent rather than methods that fail after use.
-
-This profile is software knowledge supplied by the host. It does not replace physical verification.
+A software profile is not a substitute for real hardware validation.
 
 ---
 
-# PHASE 4 HARDENING
+# CI AND HARDENING
 
-## 25. CI quality gates
+## 24. CI quality gates
 
-`.github/workflows/ci.yml` uses Flutter **3.32.7** and keeps the six-platform Designer build matrix.
+`.github/workflows/ci.yml` uses Flutter **3.32.7**.
 
-Quality jobs now cover four scopes independently:
+Independent quality jobs cover:
 
 ```text
 report_engine
   pub get
-  format check
+  format
   analyze
   tests + coverage
+  pub publish --dry-run
 
 report_engine_sunmi
   pub get
-  format check
+  format
   analyze
   tests
 
 designer
   pub get
-  format check
+  format
   analyze
   tests + coverage
 
 report_engine/example
   pub get
-  format check
+  format
   analyze
   tests
-  Android debug APK build
+  Android debug APK
 ```
 
-Designer build jobs remain:
+Designer build jobs cover:
 
 ```text
 Web release
@@ -561,45 +575,43 @@ macOS release
 iOS simulator
 ```
 
-The companion Sunmi package has its own quality gate because it has platform-specific dependencies and must not depend on incidental validation performed by core or Designer jobs.
+When Designer formatting fails, CI formats `lib`/`test`, prints the diff, and uploads a `formatted-designer` artifact. This makes formatter-only failures reproducible using the exact Flutter/Dart version used by CI.
 
-## 26. Rendering regression strategy
+## 25. Designer regression coverage
 
-File:
-
-```text
-packages/report_engine/test/pdf_render_service_test.dart
-```
-
-The regression suite protects:
-
-- Thermal 80mm geometry
-- Thermal 58mm geometry
-- A4 geometry
-- A4 invoice pagination with more than 25 rows
-- Thai A4 invoice rendering
-
-Stable assertions include:
+Relevant tests include:
 
 ```text
-PDF signature/footer
-page-object count
-/MediaBox dimensions
-pagination behavior
-minimum output-size sanity for embedded Thai-font output
+apps/designer/test/design_system_test.dart
+apps/designer/test/designer_shell_canvas_test.dart
+apps/designer/test/designer_page_test.dart
+apps/designer/test/designer_document_controller_test.dart
 ```
 
-Raw PDF byte equality is deliberately avoided because runtime timestamps and PDF object/metadata details may change without changing the rendered document semantics.
+Coverage protects:
+
+- normalized shell dimensions
+- printable CanvasPage dimensions
+- ruler marks
+- selection handle count/size behavior
+- selected child sizing
+- live DesignerPage use of shell/canvas primitives
+- compact layout below 1280 px
+- SafeArea presence for the custom toolbar
+- add/select/edit behavior
+- table-column editor
+- JSON schema visibility
+- undo/history controller behavior
+
+## 26. PDF regression strategy
+
+`packages/report_engine/test/pdf_render_service_test.dart` protects thermal 80 mm, thermal 58 mm, A4 geometry, multi-page invoice pagination, and Thai A4 rendering.
+
+Stable assertions include PDF signature/footer, page count, `/MediaBox` dimensions, pagination behavior, and output-size sanity for embedded Thai fonts.
 
 ## 27. Printer compatibility evidence
 
-The compatibility matrix lives in:
-
-```text
-docs/PRINTER_COMPATIBILITY.md
-```
-
-It separates four concepts that must not be conflated:
+`docs/PRINTER_COMPATIBILITY.md` separates:
 
 ```text
 Implemented software
@@ -608,20 +620,7 @@ Emulator/simulator validation
 Physical hardware verification
 ```
 
-Candidate hardware currently documented includes:
-
-```text
-XP-80
-XP-58
-Epson TM-T88V
-Sunmi V2
-```
-
-Until real-device evidence is recorded, each remains:
-
-```text
-NEEDS PHYSICAL VERIFICATION
-```
+Do not infer physical compatibility from unit tests or brand names.
 
 ---
 
@@ -629,7 +628,7 @@ NEEDS PHYSICAL VERIFICATION
 
 ## 28. Recommended validation order
 
-For core changes:
+Core:
 
 ```bash
 cd packages/report_engine
@@ -639,17 +638,7 @@ flutter analyze
 flutter test
 ```
 
-For Sunmi changes:
-
-```bash
-cd packages/report_engine_sunmi
-flutter pub get
-dart format --output=none --set-exit-if-changed lib test
-flutter analyze
-flutter test
-```
-
-For Designer changes:
+Designer:
 
 ```bash
 cd apps/designer
@@ -659,7 +648,17 @@ flutter analyze
 flutter test
 ```
 
-For the engine example:
+Sunmi:
+
+```bash
+cd packages/report_engine_sunmi
+flutter pub get
+dart format --output=none --set-exit-if-changed lib test
+flutter analyze
+flutter test
+```
+
+Example:
 
 ```bash
 cd packages/report_engine/example
@@ -672,11 +671,15 @@ flutter build apk --debug
 
 ## 29. Debug by layer
 
-When printer output is wrong, identify the failing layer first:
-
 ```text
 wrong resolved value
 → resolver/template
+
+wrong Designer geometry/history
+→ DesignerDocumentController
+
+wrong Designer visual composition
+→ design_system / DesignerPage
 
 wrong PDF layout
 → PdfRenderService
@@ -687,7 +690,7 @@ wrong ESC/POS bytes
 bytes correct but not delivered
 → transport
 
-printer missing from list
+printer missing
 → discovery source
 
 cut/drawer unsupported
@@ -697,41 +700,25 @@ works in tests but not on device
 → physical compatibility investigation
 ```
 
-Do not solve transport problems by adding logic to rendering, and do not declare model compatibility based solely on unit tests.
+Do not solve transport problems in rendering code, and do not solve UI composition problems by changing persisted report geometry.
 
 ---
 
 # RELEASE BOUNDARY
 
-## 30. What is software-validated
+## 30. Software-validated areas
 
-The project has software coverage for:
+The project has automated/software coverage for PDF generation, Thai PDF fonts, thermal/A4 geometry, pagination, ESC/POS Thai conversion/raster fallback, quick-receipt layout, transport abstractions, discovery composition, Sunmi adapter behavior through fakes, template persistence/editing, Designer history behavior, and the normalized shell/canvas UI contracts.
 
-- PDF generation
-- Thai PDF fonts
-- thermal and A4 geometry
-- multi-page invoice behavior
-- Thai invoice output
-- ESC/POS TIS-620/CP874 conversion
-- Thai raster fallback
-- quick-receipt layout
-- transport abstraction
-- unified discovery behavior
-- Sunmi adapter behavior through fake bridge tests
-- optional hardware capability ordering
-- Designer template persistence/editing workflows
+## 31. Hardware evidence still matters
 
-## 31. What still requires hardware evidence
+Before claiming a printer model as physically supported, record real-device evidence according to `docs/PRINTER_COMPATIBILITY.md`.
 
-Software validation is not physical printer validation.
+Do not infer:
 
-Before claiming a model as physically supported, record real-device evidence according to `docs/PRINTER_COMPATIBILITY.md`.
-
-In particular, do not infer:
-
-- an XP-series printer's Thai code-table number
+- XP-series Thai code tables
 - Bluetooth Classic compatibility from BLE support
-- a Sunmi model's cutter/drawer support from brand alone
-- an Epson model's raw USB/network compatibility from OS system-printer support
+- Sunmi cutter/drawer support from brand alone
+- Epson raw USB/network compatibility from OS printer support
 
-Those remain hardware/integration facts that must be verified on the actual target environment.
+Those are hardware/integration facts and require validation on the actual target environment.
