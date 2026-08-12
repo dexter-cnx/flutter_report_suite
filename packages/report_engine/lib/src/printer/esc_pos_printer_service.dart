@@ -3,16 +3,19 @@ import 'dart:async';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-import '../models/report_template.dart';
 import '../services/report_value_resolver.dart';
+import 'encoding/esc_pos_encoding_config.dart';
+import 'rendering/esc_pos_renderer.dart';
 import 'transport/bluetooth_esc_pos_transport.dart';
 import 'transport/esc_pos_transport.dart';
 
 class EscPosPrinterService {
-  EscPosPrinterService({ReportValueResolver? resolver})
-      : _resolver = resolver ?? const ReportValueResolver();
+  EscPosPrinterService({
+    ReportValueResolver? resolver,
+    EscPosRenderer? renderer,
+  }) : _renderer = renderer ?? EscPosRenderer(resolver: resolver);
 
-  final ReportValueResolver _resolver;
+  final EscPosRenderer _renderer;
 
   Future<List<ScanResult>> scanPrinters({
     Duration timeout = const Duration(seconds: 5),
@@ -35,165 +38,71 @@ class EscPosPrinterService {
   }
 
   /// Backwards-compatible Bluetooth receipt printing entry point.
+  ///
+  /// [encodingConfig] opts into explicit Thai code-page or raster rendering.
+  /// When omitted, legacy `esc_pos_utils_plus` text encoding is preserved.
   Future<void> printReceipt({
     required BluetoothDevice device,
     required Map<String, dynamic> templateJson,
     required Map<String, dynamic> data,
     PaperSize paperSize = PaperSize.mm80,
+    EscPosEncodingConfig? encodingConfig,
+    bool cutAfterPrint = true,
   }) {
     return printReceiptWithTransport(
       transport: BluetoothEscPosTransport(device),
       templateJson: templateJson,
       data: data,
       paperSize: paperSize,
+      encodingConfig: encodingConfig,
+      cutAfterPrint: cutAfterPrint,
     );
   }
 
-  /// Renders a receipt independently from the connection mechanism and sends
-  /// the resulting bytes through the supplied transport adapter.
+  /// Renders independently from the connection mechanism and sends the bytes
+  /// through the supplied transport adapter.
   Future<void> printReceiptWithTransport({
     required EscPosTransport transport,
     required Map<String, dynamic> templateJson,
     required Map<String, dynamic> data,
     PaperSize paperSize = PaperSize.mm80,
+    EscPosEncodingConfig? encodingConfig,
+    bool cutAfterPrint = true,
   }) async {
-    final bytes = await _buildTemplateBytes(
-      template: ReportTemplate.fromJson(templateJson),
+    final template = ReportTemplate.fromJson(templateJson);
+    final bytes = await _renderer.renderTemplate(
+      template: template,
       data: data,
       paperSize: paperSize,
+      encodingConfig: encodingConfig,
     );
+    if (cutAfterPrint) {
+      bytes.addAll(await _legacyCutBytes(paperSize));
+    }
     await transport.send(bytes);
   }
 
   Future<List<int>> buildQuickReceipt({
     required Map<String, dynamic> data,
     PaperSize paper = PaperSize.mm80,
+    EscPosEncodingConfig? encodingConfig,
+    bool includeCut = true,
   }) async {
-    final profile = await CapabilityProfile.load();
-    final generator = Generator(paper, profile);
-    final bytes = <int>[];
-    final shop = data['shop'] is Map ? data['shop'] as Map : const {};
-
-    bytes.addAll(generator.text(
-      shop['name']?.toString() ?? 'ร้านค้า',
-      styles: const PosStyles(
-        align: PosAlign.center,
-        bold: true,
-        height: PosTextSize.size2,
-      ),
-    ));
-    bytes.addAll(generator.text(
-      'สาขา ${shop['branch'] ?? ''}',
-      styles: const PosStyles(align: PosAlign.center),
-    ));
-    bytes.addAll(generator.hr());
-    bytes.addAll(generator.text('วันที่ ${data['date'] ?? ''}'));
-    bytes.addAll(generator.text('เลขที่ ${data['orderId'] ?? ''}'));
-    bytes.addAll(generator.hr());
-
-    final items = data['items'];
-    if (items is List) {
-      for (final item in items) {
-        if (item is! Map) continue;
-        bytes.addAll(generator.row([
-          PosColumn(text: item['name']?.toString() ?? '', width: 8),
-          PosColumn(
-            text: 'x${item['qty'] ?? ''}',
-            width: 2,
-            styles: const PosStyles(align: PosAlign.center),
-          ),
-          PosColumn(
-            text: item['price']?.toString() ?? '',
-            width: 2,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]));
-      }
+    final bytes = await _renderer.renderQuickReceipt(
+      data: data,
+      paperSize: paper,
+      encodingConfig: encodingConfig,
+    );
+    if (includeCut) {
+      bytes.addAll(await _legacyCutBytes(paper));
     }
-
-    bytes.addAll(generator.hr());
-    bytes.addAll(generator.text(
-      'รวม ${data['total'] ?? ''} บาท',
-      styles: const PosStyles(
-        bold: true,
-        align: PosAlign.right,
-        height: PosTextSize.size2,
-      ),
-    ));
-    final orderId = data['orderId']?.toString() ?? '';
-    if (orderId.isNotEmpty) bytes.addAll(generator.qrcode(orderId));
-    bytes.addAll(generator.text(
-      data['note']?.toString() ?? 'ขอบคุณครับ',
-      styles: const PosStyles(align: PosAlign.center),
-    ));
-    bytes.addAll(generator.cut());
     return bytes;
   }
 
-  Future<List<int>> _buildTemplateBytes({
-    required ReportTemplate template,
-    required Map<String, dynamic> data,
-    required PaperSize paperSize,
-  }) async {
+  /// Temporary compatibility bridge until Task 12 moves cutting behind an
+  /// explicit printer capability. Renderers themselves never emit cut commands.
+  Future<List<int>> _legacyCutBytes(PaperSize paperSize) async {
     final profile = await CapabilityProfile.load();
-    final generator = Generator(paperSize, profile);
-    final bytes = <int>[];
-
-    for (final element in template.elements) {
-      final value = element.type == 'text'
-          ? element.key ?? ''
-          : _resolver.resolve(element.key, data);
-      final text = value.toString();
-      final styles = PosStyles(
-        align: _posAlign(element.style['align']?.toString()),
-        bold: element.style['bold'] == true,
-      );
-
-      if (element.type == 'line') {
-        bytes.addAll(generator.hr());
-        continue;
-      }
-      if (element.type == 'qrcode') {
-        if (text.isNotEmpty) bytes.addAll(generator.qrcode(text));
-        continue;
-      }
-      if (element.type == 'barcode') {
-        if (text.isNotEmpty) {
-          bytes.addAll(generator.barcode(Barcode.code128(text.codeUnits)));
-        }
-        continue;
-      }
-      if (element.type == 'table') {
-        if (value is List) {
-          for (final row in value) {
-            if (row is! Map) continue;
-            final cells = element.columns.isEmpty
-                ? row.values.map((cell) => cell.toString()).toList()
-                : element.columns
-                    .map((column) => (row[column['key']] ?? '').toString())
-                    .toList();
-            bytes.addAll(generator.text(cells.join('  '), styles: styles));
-          }
-        }
-        continue;
-      }
-      if (text.isNotEmpty) {
-        bytes.addAll(generator.text(text, styles: styles));
-      }
-    }
-
-    bytes.addAll(generator.cut());
-    return bytes;
-  }
-
-  PosAlign _posAlign(String? alignment) {
-    switch (alignment) {
-      case 'center':
-        return PosAlign.center;
-      case 'right':
-        return PosAlign.right;
-      default:
-        return PosAlign.left;
-    }
+    return Generator(paperSize, profile).cut();
   }
 }
