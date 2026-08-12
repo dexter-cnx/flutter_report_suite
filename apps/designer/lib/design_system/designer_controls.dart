@@ -6,6 +6,25 @@ import 'designer_radius.dart';
 import 'designer_spacing.dart';
 import 'designer_typography.dart';
 
+InputDecoration _compactInputDecoration({
+  String? label,
+  String? hintText,
+  String? suffixText,
+}) {
+  return InputDecoration(
+    isDense: true,
+    labelText: label,
+    hintText: hintText,
+    suffixText: suffixText,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    labelStyle: DesignerTypography.controlLabel.copyWith(height: 1),
+    floatingLabelStyle: DesignerTypography.controlLabel.copyWith(
+      fontSize: 10,
+      height: 1,
+    ),
+  );
+}
+
 class ToolbarButton extends StatelessWidget {
   const ToolbarButton({
     super.key,
@@ -174,6 +193,7 @@ class PropertyInput extends StatelessWidget {
   const PropertyInput({
     super.key,
     this.initialValue,
+    this.fieldId,
     this.label,
     this.hintText,
     this.onSubmitted,
@@ -181,6 +201,7 @@ class PropertyInput extends StatelessWidget {
   });
 
   final String? initialValue;
+  final String? fieldId;
   final String? label;
   final String? hintText;
   final ValueChanged<String>? onSubmitted;
@@ -188,14 +209,17 @@ class PropertyInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final identity = fieldId ?? label ?? 'property';
+
     return SizedBox(
       height: DesignerLayout.compactControlHeight,
       child: TextFormField(
+        key: ValueKey('$identity\u0000${initialValue ?? ''}'),
         initialValue: initialValue,
         enabled: enabled,
-        style: DesignerTypography.controlValue,
-        decoration: InputDecoration(
-          labelText: label,
+        style: DesignerTypography.controlValue.copyWith(height: 16 / 13),
+        decoration: _compactInputDecoration(
+          label: label,
           hintText: hintText,
         ),
         onFieldSubmitted: onSubmitted,
@@ -227,10 +251,10 @@ class NumberPropertyInput extends StatelessWidget {
       child: TextFormField(
         key: ValueKey('$label-$value'),
         initialValue: value.toStringAsFixed(fractionDigits),
-        style: DesignerTypography.controlValue,
+        style: DesignerTypography.controlValue.copyWith(height: 16 / 13),
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: InputDecoration(
-          labelText: label,
+        decoration: _compactInputDecoration(
+          label: label,
           suffixText: unit,
         ),
         onFieldSubmitted: (raw) {
@@ -266,8 +290,8 @@ class PropertyDropdown<T> extends StatelessWidget {
         // ignore: deprecated_member_use
         value: value,
         isExpanded: true,
-        style: DesignerTypography.controlValue,
-        decoration: InputDecoration(labelText: label),
+        style: DesignerTypography.controlValue.copyWith(height: 16 / 13),
+        decoration: _compactInputDecoration(label: label),
         items: items,
         onChanged: onChanged,
       ),
