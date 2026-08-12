@@ -33,7 +33,8 @@ class ReportValueResolver {
   String resolveText(String? expression, Map<String, dynamic> data) {
     if (expression == null || expression.isEmpty) return '';
 
-    final matches = _placeholderPattern.allMatches(expression).toList(growable: false);
+    final matches =
+        _placeholderPattern.allMatches(expression).toList(growable: false);
     if (matches.isEmpty) {
       return resolve(expression, data).toString();
     }
