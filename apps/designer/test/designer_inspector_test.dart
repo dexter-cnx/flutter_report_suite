@@ -30,14 +30,16 @@ void main() {
     );
   }
 
-  testWidgets('shows empty inspector state without a selection', (tester) async {
+  testWidgets('shows empty inspector state without a selection',
+      (tester) async {
     await tester.pumpWidget(buildInspector());
 
     expect(find.text('Inspector'), findsOneWidget);
     expect(find.text('Select an element to edit'), findsOneWidget);
   });
 
-  testWidgets('groups supported fields into normalized sections', (tester) async {
+  testWidgets('groups supported fields into normalized sections',
+      (tester) async {
     final element = <String, dynamic>{
       'id': 'text-1',
       'type': 'text',
@@ -55,9 +57,12 @@ void main() {
 
     await tester.pumpWidget(buildInspector(element: element));
 
-    expect(find.byKey(const ValueKey('inspector-section-content')), findsOneWidget);
-    expect(find.byKey(const ValueKey('inspector-section-geometry')), findsOneWidget);
-    expect(find.byKey(const ValueKey('inspector-section-typography')), findsOneWidget);
+    expect(find.byKey(const ValueKey('inspector-section-content')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('inspector-section-geometry')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('inspector-section-typography')),
+        findsOneWidget);
     expect(find.text('Key / Text'), findsOneWidget);
     expect(find.text('Font Size'), findsOneWidget);
     expect(find.text('Bold'), findsOneWidget);
@@ -65,7 +70,8 @@ void main() {
     expect(find.byKey(const ValueKey('delete-element-button')), findsOneWidget);
   });
 
-  testWidgets('shows table column section only for table elements', (tester) async {
+  testWidgets('shows table column section only for table elements',
+      (tester) async {
     final element = <String, dynamic>{
       'id': 'table-1',
       'type': 'table',
