@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'design_system/designer_theme.dart';
 import 'pages/template_gallery_page.dart';
 
 void main() {
@@ -13,11 +14,7 @@ class DesignerApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Report Designer - Web/Desktop/Mobile',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
-        brightness: Brightness.light,
-      ),
+      theme: DesignerTheme.light(),
       home: const TemplateGalleryPage(),
       debugShowCheckedModeBanner: false,
     );
