@@ -23,6 +23,15 @@ void main() {
       expect(printers.single.name, 'Sunmi V2_PRO');
       expect(printers.single.type, PrinterConnectionType.embedded);
       expect(printers.single.metadata['version'], '1.2.3');
+      expect(printers.single.metadata['cutter'], 'true');
+      expect(printers.single.metadata['cashDrawer'], 'true');
+    });
+
+    test('declares core cutter and cash drawer capabilities', () {
+      final adapter = SunmiPrinterAdapter(bridge: _FakeBridge());
+
+      expect(adapter, isA<CutterCapability>());
+      expect(adapter, isA<CashDrawerCapability>());
     });
 
     test('delegates cut drawer and service rebind operations', () async {
