@@ -1,0 +1,20 @@
+name: report_engine_sunmi
+description: Optional Android Sunmi adapter for report_engine.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  report_engine:
+    path: ../report_engine
+  sunmi_printer_plus: ^4.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
