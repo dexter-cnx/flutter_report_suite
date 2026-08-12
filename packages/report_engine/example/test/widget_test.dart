@@ -27,11 +27,24 @@ void main() {
     expect(find.text('Thai PDF preview / share'), findsOneWidget);
 
     await tester.scrollUntilVisible(
-      find.text('Generate ESC/POS quick receipt'),
+      find.text('Generate legacy ESC/POS quick receipt'),
       200,
       scrollable: scrollable,
     );
-    expect(find.text('Generate ESC/POS quick receipt'), findsOneWidget);
+    expect(
+      find.text('Generate legacy ESC/POS quick receipt'),
+      findsOneWidget,
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Generate Thai raster ESC/POS receipt'),
+      200,
+      scrollable: scrollable,
+    );
+    expect(
+      find.text('Generate Thai raster ESC/POS receipt'),
+      findsOneWidget,
+    );
 
     await tester.scrollUntilVisible(
       find.text('Export A4 template JSON to clipboard'),
