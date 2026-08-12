@@ -4,6 +4,20 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+class EscPosRasterColumn {
+  const EscPosRasterColumn({
+    required this.text,
+    required this.flex,
+    this.align = PosAlign.left,
+    this.bold = false,
+  });
+
+  final String text;
+  final int flex;
+  final PosAlign align;
+  final bool bold;
+}
+
 /// Rasterizes text into printer-ready ESC/POS image commands.
 abstract interface class EscPosRasterizer {
   Future<List<int>> rasterize(
@@ -11,6 +25,12 @@ abstract interface class EscPosRasterizer {
     required PaperSize paperSize,
     PosAlign align = PosAlign.left,
     bool bold = false,
+    int scale = 1,
+  });
+
+  Future<List<int>> rasterizeColumns(
+    List<EscPosRasterColumn> columns, {
+    required PaperSize paperSize,
     int scale = 1,
   });
 }
@@ -43,21 +63,103 @@ class FlutterEscPosRasterizer implements EscPosRasterizer {
     int scale = 1,
   }) async {
     if (text.isEmpty) return const <int>[];
+    _validate(scale);
+    await _ensureFontsLoaded();
+
+    final width = paperSize.width;
+    final contentWidth = _contentWidth(width);
+    final painter = _textPainter(
+      text,
+      align: align,
+      bold: bold,
+      scale: scale,
+    )..layout(maxWidth: contentWidth);
+
+    final height = painter.height.ceil() + (verticalPadding * 2);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    _paintBackground(canvas, width: width, height: height);
+    painter.paint(
+      canvas,
+      Offset(horizontalPadding.toDouble(), verticalPadding.toDouble()),
+    );
+    painter.dispose();
+
+    return _pictureToGsV0(recorder.endRecording(), width: width, height: height);
+  }
+
+  @override
+  Future<List<int>> rasterizeColumns(
+    List<EscPosRasterColumn> columns, {
+    required PaperSize paperSize,
+    int scale = 1,
+  }) async {
+    if (columns.isEmpty) return const <int>[];
+    _validate(scale);
+    if (columns.any((column) => column.flex <= 0)) {
+      throw ArgumentError.value(columns, 'columns', 'Column flex must be > 0.');
+    }
+    await _ensureFontsLoaded();
+
+    final width = paperSize.width;
+    final contentWidth = _contentWidth(width);
+    final totalFlex = columns.fold<int>(0, (sum, column) => sum + column.flex);
+    final painters = <TextPainter>[];
+    final widths = <double>[];
+    var maxHeight = 0.0;
+
+    for (final column in columns) {
+      final columnWidth = contentWidth * column.flex / totalFlex;
+      final painter = _textPainter(
+        column.text,
+        align: column.align,
+        bold: column.bold,
+        scale: scale,
+      )..layout(maxWidth: columnWidth);
+      painters.add(painter);
+      widths.add(columnWidth);
+      if (painter.height > maxHeight) maxHeight = painter.height;
+    }
+
+    final height = maxHeight.ceil() + (verticalPadding * 2);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    _paintBackground(canvas, width: width, height: height);
+
+    var x = horizontalPadding.toDouble();
+    for (var index = 0; index < painters.length; index++) {
+      painters[index].paint(canvas, Offset(x, verticalPadding.toDouble()));
+      x += widths[index];
+      painters[index].dispose();
+    }
+
+    return _pictureToGsV0(recorder.endRecording(), width: width, height: height);
+  }
+
+  void _validate(int scale) {
     if (scale < 1 || scale > 8) {
       throw RangeError.range(scale, 1, 8, 'scale');
     }
     if (threshold < 0 || threshold > 255) {
       throw RangeError.range(threshold, 0, 255, 'threshold');
     }
+  }
 
-    await _ensureFontsLoaded();
-
-    final width = paperSize.width;
+  double _contentWidth(int width) {
     final contentWidth = (width - (horizontalPadding * 2)).toDouble();
     if (contentWidth <= 0) {
       throw StateError('Raster horizontal padding exceeds paper width.');
     }
-    final painter = TextPainter(
+    return contentWidth;
+  }
+
+  TextPainter _textPainter(
+    String text, {
+    required PosAlign align,
+    required bool bold,
+    required int scale,
+  }) {
+    return TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
@@ -70,22 +172,21 @@ class FlutterEscPosRasterizer implements EscPosRasterizer {
       ),
       textAlign: _textAlign(align),
       textDirection: TextDirection.ltr,
-    )..layout(maxWidth: contentWidth);
+    );
+  }
 
-    final height = painter.height.ceil() + (verticalPadding * 2);
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
+  void _paintBackground(Canvas canvas, {required int width, required int height}) {
     canvas.drawRect(
       Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
       Paint()..color = Colors.white,
     );
-    painter.paint(
-      canvas,
-      Offset(horizontalPadding.toDouble(), verticalPadding.toDouble()),
-    );
-    painter.dispose();
+  }
 
-    final picture = recorder.endRecording();
+  Future<List<int>> _pictureToGsV0(
+    ui.Picture picture, {
+    required int width,
+    required int height,
+  }) async {
     final image = await picture.toImage(width, height);
     picture.dispose();
     final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);

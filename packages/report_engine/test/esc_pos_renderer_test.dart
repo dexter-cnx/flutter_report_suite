@@ -40,28 +40,55 @@ void main() {
       expect(rasterizer.lastText, 'กุ้ง');
     });
 
-    test('quick receipt routes Thai fields through CP874 strategy', () async {
+    test('quick receipt preserves 8/2/2 code-page item columns', () async {
+      const config = EscPosEncodingConfig.cp874(codeTable: 30);
+      const encoder = EscPosTextEncoder();
       final renderer = EscPosRenderer();
       final bytes = await renderer.renderQuickReceipt(
         data: const <String, dynamic>{
-          'shop': <String, dynamic>{'name': 'ร้านค้า', 'branch': 'CNX'},
-          'date': '2026-08-12',
-          'orderId': 'INV-001',
+          'shop': <String, dynamic>{'name': 'Shop'},
+          'items': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'name': 'Long item name that must stay in name',
+              'qty': 2,
+              'price': 120,
+            },
+          ],
+          'total': 120,
+        },
+        encodingConfig: config,
+      );
+
+      const expectedLine =
+          'Long item name that must stay in   x2        120';
+      expect(
+        _containsSequence(
+          bytes,
+          encoder.encodeLine(expectedLine, config: config),
+        ),
+        isTrue,
+      );
+    });
+
+    test('quick receipt uses measured raster columns', () async {
+      final rasterizer = _FakeRasterizer(const <int>[0x1D, 0x76, 0x30, 0x00, 7]);
+      final renderer = EscPosRenderer(rasterizer: rasterizer);
+
+      await renderer.renderQuickReceipt(
+        data: const <String, dynamic>{
+          'shop': <String, dynamic>{'name': 'ร้านค้า'},
           'items': <Map<String, dynamic>>[
             <String, dynamic>{'name': 'กุ้ง', 'qty': 1, 'price': 120},
           ],
           'total': 120,
-          'note': 'ขอบคุณครับ',
         },
-        encodingConfig: const EscPosEncodingConfig.cp874(codeTable: 30),
+        encodingConfig: const EscPosEncodingConfig.raster(),
       );
 
-      expect(_containsSequence(bytes, const <int>[0x1B, 0x74, 30]), isTrue);
-      expect(
-        _containsSequence(bytes, const <int>[0xA1, 0xD8, 0xE9, 0xA7]),
-        isTrue,
-      );
-      expect(_containsSequence(bytes, const <int>[0x1D, 0x56]), isFalse);
+      expect(rasterizer.columnCalls, 1);
+      expect(rasterizer.lastColumns!.map((column) => column.flex), <int>[8, 2, 2]);
+      expect(rasterizer.lastColumns![1].align, PosAlign.center);
+      expect(rasterizer.lastColumns![2].align, PosAlign.right);
     });
   });
 }
@@ -109,7 +136,9 @@ class _FakeRasterizer implements EscPosRasterizer {
 
   final List<int> bytes;
   int calls = 0;
+  int columnCalls = 0;
   String? lastText;
+  List<EscPosRasterColumn>? lastColumns;
 
   @override
   Future<List<int>> rasterize(
@@ -121,6 +150,17 @@ class _FakeRasterizer implements EscPosRasterizer {
   }) async {
     calls += 1;
     lastText = text;
+    return List<int>.from(bytes);
+  }
+
+  @override
+  Future<List<int>> rasterizeColumns(
+    List<EscPosRasterColumn> columns, {
+    required PaperSize paperSize,
+    int scale = 1,
+  }) async {
+    columnCalls += 1;
+    lastColumns = List<EscPosRasterColumn>.from(columns);
     return List<int>.from(bytes);
   }
 }

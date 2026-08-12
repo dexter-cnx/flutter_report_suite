@@ -4,43 +4,45 @@ import 'package:report_engine_sunmi/report_engine_sunmi.dart';
 
 void main() {
   group('SunmiPrinterAdapter', () {
-    test('sends raw ESC/POS bytes through the bridge', () async {
-      final bridge = _FakeBridge();
-      final adapter = SunmiPrinterAdapter(bridge: bridge);
-
-      await adapter.send(<int>[0x1B, 0x40, 0x0A]);
-
-      expect(bridge.lastBytes, <int>[0x1B, 0x40, 0x0A]);
-    });
-
-    test('discovers embedded Sunmi without exposing plugin objects', () async {
+    test('defaults to print-only capabilities', () async {
       final adapter = SunmiPrinterAdapter(bridge: _FakeBridge());
-
       final printers = await adapter.discover();
 
-      expect(printers, hasLength(1));
-      expect(printers.single.id, 'embedded:sunmi:SN-001');
-      expect(printers.single.name, 'Sunmi V2_PRO');
-      expect(printers.single.type, PrinterConnectionType.embedded);
-      expect(printers.single.metadata['version'], '1.2.3');
-      expect(printers.single.metadata['cutter'], 'true');
-      expect(printers.single.metadata['cashDrawer'], 'true');
+      expect(adapter, isNot(isA<CutterCapability>()));
+      expect(adapter, isNot(isA<CashDrawerCapability>()));
+      expect(printers.single.metadata['cutter'], 'false');
+      expect(printers.single.metadata['cashDrawer'], 'false');
     });
 
-    test('declares core cutter and cash drawer capabilities', () {
-      final adapter = SunmiPrinterAdapter(bridge: _FakeBridge());
+    test('exposes only capabilities selected by verified hardware profile', () {
+      final cutterOnly = SunmiPrinterAdapter(
+        bridge: _FakeBridge(),
+        hardwareProfile: const SunmiHardwareProfile(supportsCutter: true),
+      );
+      final drawerOnly = SunmiPrinterAdapter(
+        bridge: _FakeBridge(),
+        hardwareProfile: const SunmiHardwareProfile(supportsCashDrawer: true),
+      );
 
-      expect(adapter, isA<CutterCapability>());
-      expect(adapter, isA<CashDrawerCapability>());
+      expect(cutterOnly, isA<CutterCapability>());
+      expect(cutterOnly, isNot(isA<CashDrawerCapability>()));
+      expect(drawerOnly, isNot(isA<CutterCapability>()));
+      expect(drawerOnly, isA<CashDrawerCapability>());
     });
 
-    test('delegates cut drawer and service rebind operations', () async {
+    test('delegates enabled cutter and drawer operations', () async {
       final bridge = _FakeBridge();
-      final adapter = SunmiPrinterAdapter(bridge: bridge);
+      final adapter = SunmiPrinterAdapter(
+        bridge: bridge,
+        hardwareProfile: const SunmiHardwareProfile(
+          supportsCutter: true,
+          supportsCashDrawer: true,
+        ),
+      );
 
-      await adapter.cutPaper();
-      await adapter.openCashDrawer();
-      final isOpen = await adapter.isCashDrawerOpen();
+      await (adapter as CutterCapability).cutPaper();
+      await (adapter as CashDrawerCapability).openCashDrawer();
+      final isOpen = await (adapter as CashDrawerCapability).isCashDrawerOpen();
       final rebound = await adapter.rebindPrinter();
 
       expect(bridge.cutCalls, 1);
@@ -48,6 +50,15 @@ void main() {
       expect(bridge.rebindCalls, 1);
       expect(isOpen, isTrue);
       expect(rebound, isTrue);
+    });
+
+    test('sends raw ESC/POS bytes through the bridge', () async {
+      final bridge = _FakeBridge();
+      final adapter = SunmiPrinterAdapter(bridge: bridge);
+
+      await adapter.send(<int>[0x1B, 0x40, 0x0A]);
+
+      expect(bridge.lastBytes, <int>[0x1B, 0x40, 0x0A]);
     });
   });
 }

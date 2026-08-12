@@ -2,21 +2,45 @@ import 'package:report_engine/report_engine.dart';
 
 import 'sunmi_printer_bridge.dart';
 
-/// Android-only adapter for the embedded printer on supported Sunmi devices.
+/// Capabilities confirmed for the concrete Sunmi model used by the host app.
 ///
-/// The adapter implements the core ESC/POS transport and optional hardware
-/// capability contracts so callers can detect cutter/drawer support without
-/// coupling to `sunmi_printer_plus` types.
-class SunmiPrinterAdapter
-    implements
-        EscPosTransport,
-        PrinterDiscoverySource,
-        CutterCapability,
-        CashDrawerCapability {
-  SunmiPrinterAdapter({SunmiPrinterBridge? bridge})
-      : _bridge = bridge ?? PluginSunmiPrinterBridge();
+/// The plugin does not expose a reliable universal model-to-capability query,
+/// so the safe default is print-only. Host applications should select a profile
+/// from their verified device inventory before enabling cutter/drawer actions.
+class SunmiHardwareProfile {
+  const SunmiHardwareProfile({
+    this.supportsCutter = false,
+    this.supportsCashDrawer = false,
+  });
+
+  final bool supportsCutter;
+  final bool supportsCashDrawer;
+}
+
+/// Android-only adapter for the embedded printer on supported Sunmi devices.
+class SunmiPrinterAdapter implements EscPosTransport, PrinterDiscoverySource {
+  factory SunmiPrinterAdapter({
+    SunmiPrinterBridge? bridge,
+    SunmiHardwareProfile hardwareProfile = const SunmiHardwareProfile(),
+  }) {
+    final resolvedBridge = bridge ?? PluginSunmiPrinterBridge();
+    if (hardwareProfile.supportsCutter &&
+        hardwareProfile.supportsCashDrawer) {
+      return _SunmiFullCapabilityAdapter(resolvedBridge, hardwareProfile);
+    }
+    if (hardwareProfile.supportsCutter) {
+      return _SunmiCutterAdapter(resolvedBridge, hardwareProfile);
+    }
+    if (hardwareProfile.supportsCashDrawer) {
+      return _SunmiCashDrawerAdapter(resolvedBridge, hardwareProfile);
+    }
+    return SunmiPrinterAdapter._(resolvedBridge, hardwareProfile);
+  }
+
+  SunmiPrinterAdapter._(this._bridge, this.hardwareProfile);
 
   final SunmiPrinterBridge _bridge;
+  final SunmiHardwareProfile hardwareProfile;
 
   @override
   Future<void> send(List<int> bytes) async {
@@ -42,12 +66,53 @@ class SunmiPrinterAdapter
           if (type != null && type.isNotEmpty) 'type': type,
           if (version != null && version.isNotEmpty) 'version': version,
           'adapter': 'sunmi_printer_plus',
-          'cutter': 'true',
-          'cashDrawer': 'true',
+          'cutter': hardwareProfile.supportsCutter.toString(),
+          'cashDrawer': hardwareProfile.supportsCashDrawer.toString(),
         },
       ),
     ];
   }
+
+  /// Rebinds the Android Sunmi printer service after it has been killed or
+  /// was not ready during app startup.
+  Future<bool> rebindPrinter() => _bridge.rebindPrinter();
+}
+
+class _SunmiCutterAdapter extends SunmiPrinterAdapter
+    implements CutterCapability {
+  _SunmiCutterAdapter(
+    SunmiPrinterBridge bridge,
+    SunmiHardwareProfile hardwareProfile,
+  ) : super._(bridge, hardwareProfile);
+
+  @override
+  Future<void> cutPaper() async {
+    await _bridge.cutPaper();
+  }
+}
+
+class _SunmiCashDrawerAdapter extends SunmiPrinterAdapter
+    implements CashDrawerCapability {
+  _SunmiCashDrawerAdapter(
+    SunmiPrinterBridge bridge,
+    SunmiHardwareProfile hardwareProfile,
+  ) : super._(bridge, hardwareProfile);
+
+  @override
+  Future<void> openCashDrawer() async {
+    await _bridge.openDrawer();
+  }
+
+  @override
+  Future<bool> isCashDrawerOpen() => _bridge.isDrawerOpen();
+}
+
+class _SunmiFullCapabilityAdapter extends SunmiPrinterAdapter
+    implements CutterCapability, CashDrawerCapability {
+  _SunmiFullCapabilityAdapter(
+    SunmiPrinterBridge bridge,
+    SunmiHardwareProfile hardwareProfile,
+  ) : super._(bridge, hardwareProfile);
 
   @override
   Future<void> cutPaper() async {
@@ -61,8 +126,4 @@ class SunmiPrinterAdapter
 
   @override
   Future<bool> isCashDrawerOpen() => _bridge.isDrawerOpen();
-
-  /// Rebinds the Android Sunmi printer service after it has been killed or
-  /// was not ready during app startup.
-  Future<bool> rebindPrinter() => _bridge.rebindPrinter();
 }

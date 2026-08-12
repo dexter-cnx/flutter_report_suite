@@ -146,12 +146,13 @@ class EscPosRenderer {
     if (items is List) {
       for (final item in items) {
         if (item is! Map) continue;
-        await _appendText(
+        await _appendQuickReceiptItem(
           bytes,
           generator: generator,
           paperSize: paperSize,
-          text:
-              '${item['name'] ?? ''}  x${item['qty'] ?? ''}  ${item['price'] ?? ''}',
+          name: item['name']?.toString() ?? '',
+          quantity: 'x${item['qty'] ?? ''}',
+          price: item['price']?.toString() ?? '',
           encodingConfig: encodingConfig,
         );
       }
@@ -180,6 +181,101 @@ class EscPosRenderer {
     );
 
     return bytes;
+  }
+
+  Future<void> _appendQuickReceiptItem(
+    List<int> bytes, {
+    required Generator generator,
+    required PaperSize paperSize,
+    required String name,
+    required String quantity,
+    required String price,
+    required EscPosEncodingConfig? encodingConfig,
+  }) async {
+    if (encodingConfig == null) {
+      bytes.addAll(
+        generator.row(<PosColumn>[
+          PosColumn(text: name, width: 8),
+          PosColumn(
+            text: quantity,
+            width: 2,
+            styles: const PosStyles(align: PosAlign.center),
+          ),
+          PosColumn(
+            text: price,
+            width: 2,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      return;
+    }
+
+    if (encodingConfig.thaiEncoding == ThaiEncoding.rasterImage) {
+      bytes.addAll(
+        await _rasterizer.rasterizeColumns(
+          <EscPosRasterColumn>[
+            EscPosRasterColumn(text: name, flex: 8),
+            EscPosRasterColumn(
+              text: quantity,
+              flex: 2,
+              align: PosAlign.center,
+            ),
+            EscPosRasterColumn(text: price, flex: 2, align: PosAlign.right),
+          ],
+          paperSize: paperSize,
+        ),
+      );
+      return;
+    }
+
+    await _appendText(
+      bytes,
+      generator: generator,
+      paperSize: paperSize,
+      text: _fixedColumnLine(
+        paperSize: paperSize,
+        name: name,
+        quantity: quantity,
+        price: price,
+      ),
+      encodingConfig: encodingConfig,
+    );
+  }
+
+  String _fixedColumnLine({
+    required PaperSize paperSize,
+    required String name,
+    required String quantity,
+    required String price,
+  }) {
+    final totalWidth = paperSize == PaperSize.mm58 ? 32 : 48;
+    final nameWidth = totalWidth * 8 ~/ 12;
+    final quantityWidth = totalWidth * 2 ~/ 12;
+    final priceWidth = totalWidth - nameWidth - quantityWidth;
+    return '${_fitColumn(name, nameWidth, PosAlign.left)}'
+        '${_fitColumn(quantity, quantityWidth, PosAlign.center)}'
+        '${_fitColumn(price, priceWidth, PosAlign.right)}';
+  }
+
+  String _fitColumn(String value, int width, PosAlign align) {
+    final runes = value.runes.toList(growable: false);
+    final fitted = runes.length > width
+        ? String.fromCharCodes(runes.take(width))
+        : value;
+    final fittedLength = fitted.runes.length;
+    final padding = width - fittedLength;
+    if (padding <= 0) return fitted;
+
+    switch (align) {
+      case PosAlign.right:
+        return '${' ' * padding}$fitted';
+      case PosAlign.center:
+        final left = padding ~/ 2;
+        return '${' ' * left}$fitted${' ' * (padding - left)}';
+      case PosAlign.left:
+        return '$fitted${' ' * padding}';
+    }
   }
 
   Future<void> _appendText(
@@ -221,9 +317,7 @@ class EscPosRenderer {
     }
 
     bytes.addAll(_stylePrefix(align: align, bold: bold, scale: scale));
-    bytes.addAll(
-      _textEncoder.encodeLine(text, config: encodingConfig),
-    );
+    bytes.addAll(_textEncoder.encodeLine(text, config: encodingConfig));
     bytes.addAll(_styleReset());
   }
 
