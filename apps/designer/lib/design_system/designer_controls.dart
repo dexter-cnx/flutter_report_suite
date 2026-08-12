@@ -22,6 +22,11 @@ class ToolbarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final backgroundColor =
+        selected ? DesignerColors.primarySubtle : Colors.transparent;
+    final foregroundColor =
+        selected ? DesignerColors.primary : DesignerColors.textSecondary;
+
     return Tooltip(
       message: tooltip,
       child: SizedBox.square(
@@ -31,11 +36,8 @@ class ToolbarButton extends StatelessWidget {
           visualDensity: VisualDensity.compact,
           onPressed: onPressed,
           style: IconButton.styleFrom(
-            backgroundColor:
-                selected ? DesignerColors.primarySubtle : Colors.transparent,
-            foregroundColor: selected
-                ? DesignerColors.primary
-                : DesignerColors.textSecondary,
+            backgroundColor: backgroundColor,
+            foregroundColor: foregroundColor,
             disabledForegroundColor: DesignerColors.textMuted,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(DesignerRadius.control),
@@ -287,6 +289,8 @@ class PropertyToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final changed = onChanged;
+
     return SizedBox(
       height: DesignerLayout.compactControlHeight,
       child: Row(
@@ -297,9 +301,11 @@ class PropertyToggle extends StatelessWidget {
           Checkbox(
             value: value,
             visualDensity: VisualDensity.compact,
-            onChanged: onChanged == null
+            onChanged: changed == null
                 ? null
-                : (next) => onChanged!(next ?? false),
+                : (next) {
+                    changed(next ?? false);
+                  },
           ),
         ],
       ),
@@ -371,14 +377,23 @@ class InlineAlert extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (color, icon) = switch (severity) {
-      InlineAlertSeverity.info => (DesignerColors.info, Icons.info_outline),
-      InlineAlertSeverity.success =>
-        (DesignerColors.success, Icons.check_circle_outline),
-      InlineAlertSeverity.warning =>
-        (DesignerColors.warning, Icons.warning_amber_outlined),
-      InlineAlertSeverity.error => (DesignerColors.error, Icons.error_outline),
-    };
+    final Color color;
+    final IconData icon;
+
+    switch (severity) {
+      case InlineAlertSeverity.info:
+        color = DesignerColors.info;
+        icon = Icons.info_outline;
+      case InlineAlertSeverity.success:
+        color = DesignerColors.success;
+        icon = Icons.check_circle_outline;
+      case InlineAlertSeverity.warning:
+        color = DesignerColors.warning;
+        icon = Icons.warning_amber_outlined;
+      case InlineAlertSeverity.error:
+        color = DesignerColors.error;
+        icon = Icons.error_outline;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(
