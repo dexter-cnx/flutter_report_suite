@@ -12,6 +12,7 @@ class DesignerDocumentController {
   Map<String, dynamic> _document = _newDocument();
   final List<String> _undoStack = <String>[];
   final List<String> _redoStack = <String>[];
+  String? _interactionSnapshot;
 
   String? selectedId;
   double zoom = 1;
@@ -100,8 +101,7 @@ class DesignerDocumentController {
     final element = selectedElement;
     if (element == null) return;
     _recordUndo();
-    final style = _style(element);
-    style[key] = value;
+    _style(element)[key] = value;
   }
 
   void moveSelected(double x, double y, {bool snap = true}) {
@@ -110,6 +110,33 @@ class DesignerDocumentController {
     _recordUndo();
     element['x'] = snap ? snapMm(x) : x;
     element['y'] = snap ? snapMm(y) : y;
+  }
+
+  void beginInteraction() {
+    _interactionSnapshot ??= jsonEncode(_document);
+  }
+
+  void moveSelectedInteractive(double x, double y) {
+    final element = selectedElement;
+    if (element == null) return;
+    element['x'] = x;
+    element['y'] = y;
+  }
+
+  void endInteraction({bool snapPosition = true}) {
+    final snapshot = _interactionSnapshot;
+    _interactionSnapshot = null;
+    if (snapshot == null) return;
+    final element = selectedElement;
+    if (snapPosition && element != null) {
+      element['x'] = snapMm(_number(element['x']));
+      element['y'] = snapMm(_number(element['y']));
+    }
+    if (snapshot != jsonEncode(_document)) {
+      _undoStack.add(snapshot);
+      if (_undoStack.length > 100) _undoStack.removeAt(0);
+      _redoStack.clear();
+    }
   }
 
   void resizeSelected(double width, double height, {bool snap = true}) {
