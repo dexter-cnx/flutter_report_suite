@@ -37,19 +37,78 @@ void main() {
     };
   }
 
+  List<Map<String, dynamic>> invoiceColumns() {
+    return const [
+      {
+        'key': 'no',
+        'label': 'No.',
+        'width': 1,
+        'alignment': 'right',
+      },
+      {
+        'key': 'name',
+        'label': 'Item',
+        'width': 5,
+        'alignment': 'left',
+      },
+      {
+        'key': 'qty',
+        'label': 'Qty',
+        'width': 1,
+        'alignment': 'center',
+      },
+      {
+        'key': 'price',
+        'label': 'Price',
+        'width': 2,
+        'alignment': 'right',
+      },
+    ];
+  }
+
   void expectValidPdf(List<int> bytes) {
     expect(bytes.length, greaterThan(100));
     expect(bytes.take(5), orderedEquals(utf8.encode('%PDF-')));
-    final tail = latin1.decode(bytes.sublist(bytes.length - 32), allowInvalid: true);
+    final tail = latin1.decode(
+      bytes.sublist(bytes.length - 32),
+      allowInvalid: true,
+    );
     expect(tail, contains('%%EOF'));
   }
 
+  String pdfSource(List<int> bytes) => latin1.decode(bytes, allowInvalid: true);
+
   int pageObjectCount(List<int> bytes) {
-    final source = latin1.decode(bytes, allowInvalid: true);
-    return RegExp(r'/Type\s*/Page\b').allMatches(source).length;
+    return RegExp(r'/Type\s*/Page\b').allMatches(pdfSource(bytes)).length;
   }
 
-  test('renders Thermal 80mm as a structurally valid PDF', () async {
+  List<({double width, double height})> mediaBoxes(List<int> bytes) {
+    final matches = RegExp(
+      r'/MediaBox\s*\[\s*0(?:\.0+)?\s+0(?:\.0+)?\s+([0-9.]+)\s+([0-9.]+)\s*\]',
+    ).allMatches(pdfSource(bytes));
+
+    return matches
+        .map(
+          (match) => (
+            width: double.parse(match.group(1)!),
+            height: double.parse(match.group(2)!),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  double mmToPoints(double mm) => mm * 72 / 25.4;
+
+  void expectPageWidth(List<int> bytes, double widthMm) {
+    final boxes = mediaBoxes(bytes);
+    expect(boxes, isNotEmpty);
+    for (final box in boxes) {
+      expect(box.width, closeTo(mmToPoints(widthMm), 0.2));
+      expect(box.height, greaterThan(0));
+    }
+  }
+
+  test('Thermal 80mm regression keeps valid structure and 80mm width', () async {
     final bytes = await PdfRenderService().render(
       documentTemplate(type: 'thermal', widthMm: 80),
       {
@@ -59,9 +118,10 @@ void main() {
 
     expectValidPdf(bytes);
     expect(pageObjectCount(bytes), 1);
+    expectPageWidth(bytes, 80);
   });
 
-  test('renders Thermal 58mm as a structurally valid PDF', () async {
+  test('Thermal 58mm regression keeps valid structure and 58mm width', () async {
     final bytes = await PdfRenderService().render(
       documentTemplate(type: 'thermal', widthMm: 58),
       {
@@ -71,9 +131,10 @@ void main() {
 
     expectValidPdf(bytes);
     expect(pageObjectCount(bytes), 1);
+    expectPageWidth(bytes, 58);
   });
 
-  test('renders A4 as a structurally valid PDF', () async {
+  test('renders A4 as a structurally valid PDF with A4 geometry', () async {
     final bytes = await PdfRenderService().render(
       documentTemplate(type: 'a4', widthMm: 210, heightMm: 297),
       {
@@ -83,14 +144,17 @@ void main() {
 
     expectValidPdf(bytes);
     expect(pageObjectCount(bytes), greaterThanOrEqualTo(1));
+    expectPageWidth(bytes, 210);
+    final boxes = mediaBoxes(bytes);
+    expect(boxes.first.height, closeTo(mmToPoints(297), 0.2));
   });
 
-  test('paginates a large A4 table', () async {
+  test('A4 invoice regression paginates more than 25 rows', () async {
     final items = List<Map<String, dynamic>>.generate(
-      120,
+      80,
       (index) => {
         'no': index + 1,
-        'name': 'Item ${index + 1}',
+        'name': 'Invoice item ${index + 1}',
         'qty': (index % 4) + 1,
         'price': 25 + index,
       },
@@ -102,28 +166,35 @@ void main() {
         heightMm: 297,
         elements: [
           {
+            'id': 'invoice-title',
+            'type': 'dynamic_text',
+            'key': 'Invoice {{invoiceNo}}',
+            'x': 0,
+            'y': 0,
+            'w': 180,
+            'h': 10,
+            'style': {'fontSize': 16, 'bold': true},
+          },
+          {
             'id': 'items',
             'type': 'table',
             'key': '{{items}}',
             'x': 0,
-            'y': 0,
+            'y': 12,
             'w': 180,
             'h': 240,
             'style': {'fontSize': 9},
-            'columns': [
-              {'key': 'no', 'label': 'No.'},
-              {'key': 'name', 'label': 'Item'},
-              {'key': 'qty', 'label': 'Qty'},
-              {'key': 'price', 'label': 'Price'},
-            ],
+            'columns': invoiceColumns(),
           },
         ],
       ),
-      {'items': items},
+      {'invoiceNo': 'INV-REGRESSION-001', 'items': items},
     );
 
     expectValidPdf(bytes);
     expect(pageObjectCount(bytes), greaterThan(1));
+    expect(mediaBoxes(bytes).length, pageObjectCount(bytes));
+    expectPageWidth(bytes, 210);
   });
 
   test('renders table width weights and per-column alignment metadata', () async {
@@ -177,6 +248,95 @@ void main() {
     expect(pageObjectCount(bytes), greaterThanOrEqualTo(1));
   });
 
+  test('Thai invoice regression renders Thai text and table rows on A4', () async {
+    final items = List<Map<String, dynamic>>.generate(
+      32,
+      (index) => {
+        'no': index + 1,
+        'name': 'สินค้า ${index + 1} กุ้ง น้ำ',
+        'qty': (index % 3) + 1,
+        'price': 120 + index,
+      },
+    );
+
+    final bytes = await PdfRenderService().render(
+      documentTemplate(
+        type: 'a4',
+        widthMm: 210,
+        heightMm: 297,
+        elements: [
+          {
+            'id': 'thai-heading',
+            'type': 'dynamic_text',
+            'key': 'ใบแจ้งหนี้ {{invoiceNo}}',
+            'x': 0,
+            'y': 0,
+            'w': 180,
+            'h': 10,
+            'style': {'fontSize': 16, 'bold': true},
+          },
+          {
+            'id': 'thai-office',
+            'type': 'dynamic_text',
+            'key': 'สำนักงาน {{office}} ยอดรวม {{total}} บาท',
+            'x': 0,
+            'y': 12,
+            'w': 180,
+            'h': 8,
+            'style': {'fontSize': 11},
+          },
+          {
+            'id': 'thai-items',
+            'type': 'table',
+            'key': '{{items}}',
+            'x': 0,
+            'y': 22,
+            'w': 180,
+            'h': 220,
+            'style': {'fontSize': 9},
+            'columns': [
+              {
+                'key': 'no',
+                'label': 'ลำดับ',
+                'width': 1,
+                'alignment': 'right',
+              },
+              {
+                'key': 'name',
+                'label': 'รายการ',
+                'width': 5,
+                'alignment': 'left',
+              },
+              {
+                'key': 'qty',
+                'label': 'จำนวน',
+                'width': 1,
+                'alignment': 'center',
+              },
+              {
+                'key': 'price',
+                'label': 'ราคา',
+                'width': 2,
+                'alignment': 'right',
+              },
+            ],
+          },
+        ],
+      ),
+      {
+        'invoiceNo': 'INV-TH-2569-001',
+        'office': 'เชียงใหม่',
+        'total': 4321.50,
+        'items': items,
+      },
+    );
+
+    expectValidPdf(bytes);
+    expect(pageObjectCount(bytes), greaterThanOrEqualTo(1));
+    expectPageWidth(bytes, 210);
+    expect(bytes.length, greaterThan(5000));
+  });
+
   test('renders Thai and mixed Thai English numeric text with bundled fonts', () async {
     final bytes = await PdfRenderService().render(
       documentTemplate(
@@ -216,6 +376,7 @@ void main() {
 
     expectValidPdf(bytes);
     expect(pageObjectCount(bytes), greaterThanOrEqualTo(1));
+    expectPageWidth(bytes, 80);
     expect(bytes.length, greaterThan(1000));
   });
 
