@@ -4,10 +4,7 @@ class ReportValueResolver {
   dynamic resolve(String? expression, Map<String, dynamic> data) {
     if (expression == null) return '';
 
-    final path = expression
-        .replaceAll('{{', '')
-        .replaceAll('}}', '')
-        .trim();
+    final path = expression.replaceAll('{{', '').replaceAll('}}', '').trim();
     if (path.isEmpty) return '';
 
     dynamic current = data;
