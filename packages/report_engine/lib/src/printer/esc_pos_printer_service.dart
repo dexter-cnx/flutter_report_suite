@@ -5,6 +5,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../models/report_template.dart';
 import '../services/report_value_resolver.dart';
+import 'capabilities/printer_hardware_capabilities.dart';
 import 'encoding/esc_pos_encoding_config.dart';
 import 'rendering/esc_pos_renderer.dart';
 import 'transport/bluetooth_esc_pos_transport.dart';
@@ -40,15 +41,16 @@ class EscPosPrinterService {
 
   /// Backwards-compatible Bluetooth receipt printing entry point.
   ///
-  /// [encodingConfig] opts into explicit Thai code-page or raster rendering.
-  /// When omitted, legacy `esc_pos_utils_plus` text encoding is preserved.
+  /// Bluetooth transport does not imply cutter support. Set [cutAfterPrint] to
+  /// false unless a transport-specific cutter capability is supplied through
+  /// [printReceiptWithTransport].
   Future<void> printReceipt({
     required BluetoothDevice device,
     required Map<String, dynamic> templateJson,
     required Map<String, dynamic> data,
     PaperSize paperSize = PaperSize.mm80,
     EscPosEncodingConfig? encodingConfig,
-    bool cutAfterPrint = true,
+    bool cutAfterPrint = false,
   }) {
     return printReceiptWithTransport(
       transport: BluetoothEscPosTransport(device),
@@ -62,14 +64,24 @@ class EscPosPrinterService {
 
   /// Renders independently from the connection mechanism and sends the bytes
   /// through the supplied transport adapter.
+  ///
+  /// Hardware operations are delegated only to explicit capabilities. A
+  /// request to cut without a [CutterCapability] fails before bytes are sent.
   Future<void> printReceiptWithTransport({
     required EscPosTransport transport,
     required Map<String, dynamic> templateJson,
     required Map<String, dynamic> data,
     PaperSize paperSize = PaperSize.mm80,
     EscPosEncodingConfig? encodingConfig,
-    bool cutAfterPrint = true,
+    bool cutAfterPrint = false,
+    CutterCapability? cutter,
   }) async {
+    if (cutAfterPrint && cutter == null) {
+      throw UnsupportedError(
+        'This printer transport does not expose a cutter capability.',
+      );
+    }
+
     final template = ReportTemplate.fromJson(templateJson);
     final bytes = await _renderer.renderTemplate(
       template: template,
@@ -77,33 +89,22 @@ class EscPosPrinterService {
       paperSize: paperSize,
       encodingConfig: encodingConfig,
     );
-    if (cutAfterPrint) {
-      bytes.addAll(await _legacyCutBytes(paperSize));
-    }
     await transport.send(bytes);
+
+    if (cutAfterPrint) {
+      await cutter!.cutPaper();
+    }
   }
 
   Future<List<int>> buildQuickReceipt({
     required Map<String, dynamic> data,
     PaperSize paper = PaperSize.mm80,
     EscPosEncodingConfig? encodingConfig,
-    bool includeCut = true,
-  }) async {
-    final bytes = await _renderer.renderQuickReceipt(
+  }) {
+    return _renderer.renderQuickReceipt(
       data: data,
       paperSize: paper,
       encodingConfig: encodingConfig,
     );
-    if (includeCut) {
-      bytes.addAll(await _legacyCutBytes(paper));
-    }
-    return bytes;
-  }
-
-  /// Temporary compatibility bridge until Task 12 moves cutting behind an
-  /// explicit printer capability. Renderers themselves never emit cut commands.
-  Future<List<int>> _legacyCutBytes(PaperSize paperSize) async {
-    final profile = await CapabilityProfile.load();
-    return Generator(paperSize, profile).cut();
   }
 }
