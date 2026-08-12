@@ -260,9 +260,8 @@ class EscPosRenderer {
 
   String _fitColumn(String value, int width, PosAlign align) {
     final runes = value.runes.toList(growable: false);
-    final fitted = runes.length > width
-        ? String.fromCharCodes(runes.take(width))
-        : value;
+    final fitted =
+        runes.length > width ? String.fromCharCodes(runes.take(width)) : value;
     final fittedLength = fitted.runes.length;
     final padding = width - fittedLength;
     if (padding <= 0) return fitted;
