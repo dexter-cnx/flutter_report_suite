@@ -30,6 +30,7 @@ class ExampleHome extends StatefulWidget {
 
 class _ExampleHomeState extends State<ExampleHome> {
   final FlutterReportPrinter _printer = FlutterReportPrinter();
+  final EscPosPrinterService _escPos = EscPosPrinterService();
 
   final Map<String, dynamic> _mockData = {
     'shop': {
@@ -47,6 +48,19 @@ class _ExampleHomeState extends State<ExampleHome> {
     'note': 'ขอบคุณครับ',
   };
 
+  Map<String, dynamic> get _a4Data => {
+        ..._mockData,
+        'orderId': 'INV-2026-001',
+        'items': List<Map<String, dynamic>>.generate(
+          30,
+          (index) => {
+            'name': 'รายการสินค้า ${index + 1}',
+            'qty': (index % 4) + 1,
+            'price': 25 + (index * 3),
+          },
+        ),
+      };
+
   Future<Map<String, dynamic>> _loadTemplate(String name) async {
     final source = await rootBundle.loadString('assets/templates/$name');
     final decoded = jsonDecode(source);
@@ -56,12 +70,16 @@ class _ExampleHomeState extends State<ExampleHome> {
     return Map<String, dynamic>.from(decoded);
   }
 
-  Future<void> _preview(String templateFile, String title) async {
+  Future<void> _preview(
+    String templateFile,
+    String title, {
+    Map<String, dynamic>? data,
+  }) async {
     try {
       final template = await _loadTemplate(templateFile);
       final bytes = await _printer.generatePdf(
         templateJson: template,
-        data: _mockData,
+        data: data ?? _mockData,
       );
       if (!mounted) return;
       await Navigator.of(context).push(
@@ -77,11 +95,41 @@ class _ExampleHomeState extends State<ExampleHome> {
         ),
       );
     } catch (error) {
+      _showError('Unable to render template: $error');
+    }
+  }
+
+  Future<void> _buildQuickEscPosReceipt() async {
+    try {
+      final bytes = await _escPos.buildQuickReceipt(data: _mockData);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to render template: $error')),
+        SnackBar(content: Text('ESC/POS receipt generated: ${bytes.length} bytes')),
       );
+    } catch (error) {
+      _showError('Unable to generate ESC/POS receipt: $error');
     }
+  }
+
+  Future<void> _copyTemplateJson(String templateFile) async {
+    try {
+      final template = await _loadTemplate(templateFile);
+      final json = const JsonEncoder.withIndent('  ').convert(template);
+      await Clipboard.setData(ClipboardData(text: json));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Template JSON copied to clipboard.')),
+      );
+    } catch (error) {
+      _showError('Unable to export template JSON: $error');
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -124,13 +172,27 @@ class _ExampleHomeState extends State<ExampleHome> {
           ),
           const SizedBox(height: 8),
           FilledButton(
-            onPressed: () => _preview('a4_invoice.json', 'A4 invoice'),
-            child: const Text('A4 invoice'),
+            onPressed: () => _preview(
+              'a4_invoice.json',
+              'A4 invoice — 30 rows',
+              data: _a4Data,
+            ),
+            child: const Text('A4 invoice with page breaking'),
           ),
           const SizedBox(height: 8),
           FilledButton(
-            onPressed: () => _preview('pdf_receipt.json', 'PDF receipt'),
-            child: const Text('PDF receipt'),
+            onPressed: () => _preview('pdf_receipt.json', 'Thai PDF receipt'),
+            child: const Text('Thai PDF preview / share'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _buildQuickEscPosReceipt,
+            child: const Text('Generate ESC/POS quick receipt'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () => _copyTemplateJson('a4_invoice.json'),
+            child: const Text('Export A4 template JSON to clipboard'),
           ),
           const SizedBox(height: 24),
           FutureBuilder<List<Printer>>(
@@ -150,6 +212,10 @@ class _ExampleHomeState extends State<ExampleHome> {
                     : 'Printers (${printers.length}): $names',
               );
             },
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Physical Thai ESC/POS output remains hardware-dependent and is not claimed by this example.',
           ),
         ],
       ),
