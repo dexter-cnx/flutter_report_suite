@@ -54,13 +54,17 @@ void main() {
           child: CanvasPage(
             width: 240,
             height: 600,
-            child: SizedBox(),
+            child: SizedBox(key: Key('printable-child')),
           ),
         ),
       ),
     );
 
     expect(tester.getSize(find.byType(CanvasPage)), const Size(240, 600));
+    expect(
+      tester.getSize(find.byKey(const Key('printable-child'))),
+      const Size(240, 600),
+    );
   });
 
   testWidgets('CanvasRuler renders millimeter marks', (tester) async {
@@ -79,29 +83,53 @@ void main() {
     expect(find.text('80'), findsOneWidget);
   });
 
-  testWidgets('CanvasSelectionOverlay exposes four resize handles',
+  testWidgets('CanvasSelectionOverlay preserves child size when selected',
       (tester) async {
     await tester.pumpWidget(
       subject(
         const Center(
-          child: SizedBox(
-            width: 120,
-            height: 48,
-            child: CanvasSelectionOverlay(
-              child: Text('Selected'),
+          child: CanvasSelectionOverlay(
+            child: SizedBox(
+              key: Key('selected-child'),
+              width: 120,
+              height: 48,
             ),
           ),
         ),
       ),
     );
 
-    final containers = tester.widgetList<Container>(find.byType(Container));
-    final handleCount = containers.where((container) {
-      return container.constraints == null &&
-          container.width == DesignerLayout.selectionHandleSize &&
-          container.height == DesignerLayout.selectionHandleSize;
-    }).length;
+    expect(
+      tester.getSize(find.byKey(const Key('selected-child'))),
+      const Size(120, 48),
+    );
+    expect(
+      tester.getSize(find.byType(CanvasSelectionOverlay)),
+      const Size(120, 48),
+    );
+  });
 
-    expect(handleCount, 4);
+  testWidgets('CanvasSelectionOverlay exposes four resize handles',
+      (tester) async {
+    await tester.pumpWidget(
+      subject(
+        const Center(
+          child: CanvasSelectionOverlay(
+            child: SizedBox(width: 120, height: 48),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('selection-handle-top-left')), findsOneWidget);
+    expect(find.byKey(const ValueKey('selection-handle-top-right')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('selection-handle-bottom-left')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('selection-handle-bottom-right')),
+      findsOneWidget,
+    );
   });
 }
