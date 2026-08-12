@@ -126,6 +126,57 @@ void main() {
     expect(pageObjectCount(bytes), greaterThan(1));
   });
 
+  test('renders table width weights and per-column alignment metadata', () async {
+    final bytes = await PdfRenderService().render(
+      documentTemplate(
+        type: 'a4',
+        widthMm: 210,
+        heightMm: 297,
+        elements: [
+          {
+            'id': 'layout-table',
+            'type': 'table',
+            'key': '{{items}}',
+            'x': 0,
+            'y': 0,
+            'w': 180,
+            'h': 100,
+            'style': {'fontSize': 9},
+            'columns': [
+              {
+                'key': 'name',
+                'label': 'Item',
+                'width': 3,
+                'alignment': 'left',
+              },
+              {
+                'key': 'qty',
+                'label': 'Qty',
+                'width': 1,
+                'alignment': 'center',
+              },
+              {
+                'key': 'price',
+                'label': 'Price',
+                'width': 2,
+                'alignment': 'right',
+              },
+            ],
+          },
+        ],
+      ),
+      const {
+        'items': [
+          {'name': 'Latte', 'qty': 2, 'price': 130},
+          {'name': 'Croissant', 'qty': 1, 'price': 85},
+        ],
+      },
+    );
+
+    expectValidPdf(bytes);
+    expect(pageObjectCount(bytes), greaterThanOrEqualTo(1));
+  });
+
   test('renders Thai and mixed Thai English numeric text with bundled fonts', () async {
     final bytes = await PdfRenderService().render(
       documentTemplate(
