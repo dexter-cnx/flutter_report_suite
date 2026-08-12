@@ -1,136 +1,224 @@
-
+import 'dart:async';
 import 'dart:typed_data';
+
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-/// ESC/POS Direct Printer - พิมพ์ตรง ไม่ผ่าน PDF เร็ว x3 สำหรับเครื่องความร้อน
+import '../models/report_template.dart';
+import '../services/report_value_resolver.dart';
+
 class EscPosPrinterService {
-  
-  /// Scan หาเครื่อง Bluetooth
-  Future<List<ScanResult>> scanPrinters({Duration timeout = const Duration(seconds: 5)}) async {
-    List<ScanResult> results = [];
-    await FlutterBluePlus.startScan(timeout: timeout);
-    FlutterBluePlus.scanResults.listen((r) {
-      results = r;
+  EscPosPrinterService({ReportValueResolver? resolver})
+      : _resolver = resolver ?? const ReportValueResolver();
+
+  final ReportValueResolver _resolver;
+
+  Future<List<ScanResult>> scanPrinters({
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    final results = <ScanResult>[];
+    final subscription = FlutterBluePlus.scanResults.listen((value) {
+      results
+        ..clear()
+        ..addAll(value);
     });
-    await Future.delayed(timeout);
-    await FlutterBluePlus.stopScan();
-    return results;
+
+    try {
+      await FlutterBluePlus.startScan(timeout: timeout);
+      await Future<void>.delayed(timeout);
+    } finally {
+      await FlutterBluePlus.stopScan();
+      await subscription.cancel();
+    }
+    return List.unmodifiable(results);
   }
 
-  /// Connect และพิมพ์ด้วย template เดิม แต่ render เป็น ESC/POS commands
   Future<void> printReceipt({
     required BluetoothDevice device,
     required Map<String, dynamic> templateJson,
     required Map<String, dynamic> data,
     PaperSize paperSize = PaperSize.mm80,
   }) async {
+    final template = ReportTemplate.fromJson(templateJson);
+    BluetoothCharacteristic? writeCharacteristic;
+
     try {
       await device.connect(timeout: const Duration(seconds: 10));
-    } catch (_) {}
-    
-    // Find printer service
-    List<BluetoothService> services = await device.discoverServices();
-    BluetoothCharacteristic? writeChar;
-    for (var s in services) {
-      for (var c in s.characteristics) {
-        if (c.properties.write) {
-          writeChar = c;
-          break;
-        }
+      final services = await device.discoverServices();
+      writeCharacteristic = _findWritableCharacteristic(services);
+      if (writeCharacteristic == null) {
+        throw StateError('Bluetooth printer has no writable characteristic.');
+      }
+
+      final bytes = await _buildTemplateBytes(
+        template: template,
+        data: data,
+        paperSize: paperSize,
+      );
+      await _writeChunks(writeCharacteristic, bytes);
+    } finally {
+      try {
+        await device.disconnect();
+      } catch (_) {
+        // The connection may already be closed by the printer.
       }
     }
-    if (writeChar == null) throw Exception('No writable characteristic found');
-
-    // Generate ESC/POS bytes
-    final profile = await CapabilityProfile.load();
-    final generator = Generator(paperSize, profile);
-    List<int> bytes = [];
-
-    // Resolve helper
-    dynamic resolve(String? key) {
-      if (key == null) return '';
-      String k = key.replaceAll('{{','').replaceAll('}}','').trim();
-      var parts = k.split('.');
-      dynamic cur = data;
-      for (var p in parts) {
-        if (cur is Map && cur.containsKey(p)) cur = cur[p];
-        else return '';
-      }
-      return cur ?? '';
-    }
-
-    final elements = (templateJson['elements'] as List);
-    for (var el in elements) {
-      final type = el['type'];
-      final raw = resolve(el['key']).toString();
-      final style = el['style'] ?? {};
-      final isBold = style['bold'] == true;
-      final align = style['align'];
-
-      if (align == 'center') bytes += generator.text(raw, styles: PosStyles(align: PosAlign.center, bold: isBold, fontType: PosFontType.fontA));
-      else if (align == 'right') bytes += generator.text(raw, styles: PosStyles(align: PosAlign.right, bold: isBold));
-      else {
-        if (type == 'line') bytes += generator.hr();
-        else if (type == 'qrcode') bytes += generator.qrcode(raw);
-        else if (type == 'barcode') bytes += generator.barcode(Barcode.code128(raw));
-        else if (type == 'table' && resolve(el['key']) is List) {
-          // Simple table render
-          List list = resolve(el['key']);
-          for (var row in list) {
-            if (row is Map) {
-              // Example: name - price
-              String line = "\${row.values.first}  \${row.values.last}";
-              bytes += generator.text(line, styles: const PosStyles());
-            }
-          }
-        } else {
-          if (raw.isNotEmpty) bytes += generator.text(raw, styles: PosStyles(bold: isBold));
-        }
-      }
-    }
-
-    bytes += generator.cut();
-
-    // Chunk write (BLE limit 180 bytes)
-    const chunkSize = 180;
-    for (var i = 0; i < bytes.length; i += chunkSize) {
-      final end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
-      await writeChar.write(Uint8List.fromList(bytes.sublist(i, end)), withoutResponse: false);
-      await Future.delayed(const Duration(milliseconds: 50));
-    }
-
-    await device.disconnect();
   }
 
-  /// Helper สร้างใบเสร็จแบบไม่ต้องใช้ template (quick print)
   Future<List<int>> buildQuickReceipt({
     required Map<String, dynamic> data,
     PaperSize paper = PaperSize.mm80,
   }) async {
     final profile = await CapabilityProfile.load();
-    final gen = Generator(paper, profile);
-    List<int> bytes = [];
-    bytes += gen.text(data['shop']?['name'] ?? 'ร้านค้า', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-    bytes += gen.text('สาขา \${data['shop']?['branch'] ?? ''}', styles: const PosStyles(align: PosAlign.center));
-    bytes += gen.hr();
-    bytes += gen.text('วันที่ \${data['date'] ?? ''}');
-    bytes += gen.text('เลขที่ \${data['orderId'] ?? ''}');
-    bytes += gen.hr();
-    if (data['items'] is List) {
-      for (var item in data['items']) {
-        bytes += gen.row([
-          PosColumn(text: item['name'].toString(), width: 8),
-          PosColumn(text: 'x\${item['qty']}', width: 2, styles: const PosStyles(align: PosAlign.center)),
-          PosColumn(text: '\${item['price']}', width: 2, styles: const PosStyles(align: PosAlign.right)),
-        ]);
+    final generator = Generator(paper, profile);
+    final bytes = <int>[];
+    final shop = data['shop'] is Map ? data['shop'] as Map : const {};
+
+    bytes.addAll(generator.text(
+      shop['name']?.toString() ?? 'ร้านค้า',
+      styles: const PosStyles(
+        align: PosAlign.center,
+        bold: true,
+        height: PosTextSize.size2,
+      ),
+    ));
+    bytes.addAll(generator.text(
+      'สาขา ${shop['branch'] ?? ''}',
+      styles: const PosStyles(align: PosAlign.center),
+    ));
+    bytes.addAll(generator.hr());
+    bytes.addAll(generator.text('วันที่ ${data['date'] ?? ''}'));
+    bytes.addAll(generator.text('เลขที่ ${data['orderId'] ?? ''}'));
+    bytes.addAll(generator.hr());
+
+    final items = data['items'];
+    if (items is List) {
+      for (final item in items) {
+        if (item is! Map) continue;
+        bytes.addAll(generator.row([
+          PosColumn(text: item['name']?.toString() ?? '', width: 8),
+          PosColumn(
+            text: 'x${item['qty'] ?? ''}',
+            width: 2,
+            styles: const PosStyles(align: PosAlign.center),
+          ),
+          PosColumn(
+            text: item['price']?.toString() ?? '',
+            width: 2,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]));
       }
     }
-    bytes += gen.hr();
-    bytes += gen.text('รวม \${data['total'] ?? ''} บาท', styles: const PosStyles(bold: true, align: PosAlign.right, height: PosTextSize.size2));
-    bytes += gen.qrcode(data['orderId']?.toString() ?? 'test');
-    bytes += gen.text(data['note'] ?? 'ขอบคุณครับ', styles: const PosStyles(align: PosAlign.center));
-    bytes += gen.cut();
+
+    bytes.addAll(generator.hr());
+    bytes.addAll(generator.text(
+      'รวม ${data['total'] ?? ''} บาท',
+      styles: const PosStyles(
+        bold: true,
+        align: PosAlign.right,
+        height: PosTextSize.size2,
+      ),
+    ));
+    bytes.addAll(generator.qrcode(data['orderId']?.toString() ?? ''));
+    bytes.addAll(generator.text(
+      data['note']?.toString() ?? 'ขอบคุณครับ',
+      styles: const PosStyles(align: PosAlign.center),
+    ));
+    bytes.addAll(generator.cut());
     return bytes;
+  }
+
+  BluetoothCharacteristic? _findWritableCharacteristic(
+    List<BluetoothService> services,
+  ) {
+    for (final service in services) {
+      for (final characteristic in service.characteristics) {
+        if (characteristic.properties.write ||
+            characteristic.properties.writeWithoutResponse) {
+          return characteristic;
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<List<int>> _buildTemplateBytes({
+    required ReportTemplate template,
+    required Map<String, dynamic> data,
+    required PaperSize paperSize,
+  }) async {
+    final profile = await CapabilityProfile.load();
+    final generator = Generator(paperSize, profile);
+    final bytes = <int>[];
+
+    for (final element in template.elements) {
+      final value = element.type == 'text'
+          ? element.key ?? ''
+          : _resolver.resolve(element.key, data);
+      final text = value.toString();
+      final style = element.style;
+      final styles = PosStyles(
+        align: _posAlign(style['align']?.toString()),
+        bold: style['bold'] == true,
+      );
+
+      switch (element.type) {
+        case 'line':
+          bytes.addAll(generator.hr());
+        case 'qrcode':
+          if (text.isNotEmpty) bytes.addAll(generator.qrcode(text));
+        case 'barcode':
+          if (text.isNotEmpty) {
+            bytes.addAll(generator.barcode(Barcode.code128(text)));
+          }
+        case 'table':
+          if (value is List) {
+            for (final row in value) {
+              if (row is! Map) continue;
+              final cells = element.columns.isEmpty
+                  ? row.values.map((cell) => cell.toString()).toList()
+                  : element.columns
+                      .map((column) =>
+                          (row[column['key']] ?? '').toString())
+                      .toList();
+              bytes.addAll(generator.text(cells.join('  '), styles: styles));
+            }
+          }
+        default:
+          if (text.isNotEmpty) {
+            bytes.addAll(generator.text(text, styles: styles));
+          }
+      }
+    }
+
+    bytes.addAll(generator.cut());
+    return bytes;
+  }
+
+  Future<void> _writeChunks(
+    BluetoothCharacteristic characteristic,
+    List<int> bytes,
+  ) async {
+    const chunkSize = 180;
+    for (var offset = 0; offset < bytes.length; offset += chunkSize) {
+      final end = (offset + chunkSize).clamp(0, bytes.length);
+      await characteristic.write(
+        Uint8List.fromList(bytes.sublist(offset, end)),
+        withoutResponse: characteristic.properties.writeWithoutResponse,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+    }
+  }
+
+  PosAlign _posAlign(String? alignment) {
+    switch (alignment) {
+      case 'center':
+        return PosAlign.center;
+      case 'right':
+        return PosAlign.right;
+      default:
+        return PosAlign.left;
+    }
   }
 }
