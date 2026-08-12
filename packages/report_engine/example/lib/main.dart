@@ -50,13 +50,28 @@ class _ExampleHomeState extends State<ExampleHome> {
 
   Map<String, dynamic> get _a4Data => {
         ..._mockData,
-        'orderId': 'INV-2026-001',
+        'invoiceNo': 'INV-2026-001',
+        'dueDate': '19/08/2026',
+        'company': {
+          'name': 'Dexter Report Solutions Co., Ltd.',
+          'taxId': '0105566123456',
+        },
+        'customer': {
+          'name': 'บริษัท ลูกค้าตัวอย่าง จำกัด',
+          'address': 'เชียงใหม่ 50200',
+        },
         'items': List<Map<String, dynamic>>.generate(
           30,
-          (index) => {
-            'name': 'รายการสินค้า ${index + 1}',
-            'qty': (index % 4) + 1,
-            'price': 25 + (index * 3),
+          (index) {
+            final qty = (index % 4) + 1;
+            final price = 25 + (index * 3);
+            return {
+              'no': index + 1,
+              'name': 'รายการสินค้า ${index + 1}',
+              'qty': qty,
+              'price': price,
+              'total': qty * price,
+            };
           },
         ),
       };
