@@ -108,7 +108,8 @@ void main() {
     }
   }
 
-  test('Thermal 80mm regression keeps valid structure and 80mm width', () async {
+  test('Thermal 80mm regression keeps valid structure and 80mm width',
+      () async {
     final bytes = await PdfRenderService().render(
       documentTemplate(type: 'thermal', widthMm: 80),
       {
@@ -121,7 +122,8 @@ void main() {
     expectPageWidth(bytes, 80);
   });
 
-  test('Thermal 58mm regression keeps valid structure and 58mm width', () async {
+  test('Thermal 58mm regression keeps valid structure and 58mm width',
+      () async {
     final bytes = await PdfRenderService().render(
       documentTemplate(type: 'thermal', widthMm: 58),
       {
@@ -197,7 +199,8 @@ void main() {
     expectPageWidth(bytes, 210);
   });
 
-  test('renders table width weights and per-column alignment metadata', () async {
+  test('renders table width weights and per-column alignment metadata',
+      () async {
     final bytes = await PdfRenderService().render(
       documentTemplate(
         type: 'a4',
@@ -248,7 +251,8 @@ void main() {
     expect(pageObjectCount(bytes), greaterThanOrEqualTo(1));
   });
 
-  test('Thai invoice regression renders Thai text and table rows on A4', () async {
+  test('Thai invoice regression renders Thai text and table rows on A4',
+      () async {
     final items = List<Map<String, dynamic>>.generate(
       32,
       (index) => {
@@ -337,7 +341,8 @@ void main() {
     expect(bytes.length, greaterThan(5000));
   });
 
-  test('renders Thai and mixed Thai English numeric text with bundled fonts', () async {
+  test('renders Thai and mixed Thai English numeric text with bundled fonts',
+      () async {
     final bytes = await PdfRenderService().render(
       documentTemplate(
         type: 'pdf',
@@ -357,7 +362,8 @@ void main() {
           {
             'id': 'thai-bold',
             'type': 'dynamic_text',
-            'key': 'สำนักงาน {{office}} / Invoice {{invoiceNo}} / {{total}} บาท',
+            'key':
+                'สำนักงาน {{office}} / Invoice {{invoiceNo}} / {{total}} บาท',
             'x': 0,
             'y': 10,
             'w': 70,
