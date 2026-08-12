@@ -6,6 +6,7 @@ A Flutter monorepo for designing report templates and rendering them offline on 
 
 ```text
 flutter_report_suite/
+├── .github/workflows/ci.yml
 ├── apps/
 │   └── designer/
 │       └── lib/pages/designer_page.dart
@@ -18,6 +19,9 @@ flutter_report_suite/
 │       ├── lib/src/services/template_storage_service.dart
 │       ├── lib/src/printer/printer_service.dart
 │       └── lib/src/printer/esc_pos_printer_service.dart
+├── docs/
+│   ├── CI.md
+│   └── CODE_WALKTHROUGH.md
 └── PROMPTS.md
 ```
 
@@ -36,6 +40,7 @@ The Designer depends on `report_engine` by path, so PDF preview and exported JSO
 ```bash
 cd packages/report_engine
 flutter pub get
+flutter analyze
 flutter test
 ```
 
@@ -44,10 +49,11 @@ flutter test
 ```bash
 cd apps/designer
 flutter pub get
+flutter analyze
 flutter run -d chrome
 ```
 
-Use another Flutter device target for Windows, macOS, Linux, Android, or iOS.
+The current repository snapshot contains Designer source/assets but not generated Flutter platform folders. Generate/restore the platform scaffolding before enabling Web, desktop, Android, or iOS build gates.
 
 ## Template model
 
@@ -79,6 +85,33 @@ The Designer supports:
 - Property editing for x/y/w/h, font size, bold, and alignment
 - PDF preview
 - JSON export
+
+## CI
+
+GitHub Actions is configured in `.github/workflows/ci.yml` and pinned to Flutter 3.32.7.
+
+Current quality gates:
+
+```text
+report_engine -> flutter pub get -> flutter analyze -> flutter test
+designer      -> flutter pub get -> flutter analyze
+```
+
+See [docs/CI.md](docs/CI.md) for CI design and planned build/test stages.
+
+## Code walkthrough
+
+See [docs/CODE_WALKTHROUGH.md](docs/CODE_WALKTHROUGH.md) for the end-to-end architecture and code flow, including:
+
+- Designer template authoring
+- Template model and JSON contract
+- Nested value resolution
+- PDF rendering
+- system printing
+- Bluetooth ESC/POS printing
+- Hive template storage
+- tests and CI
+- a file-level map for future changes
 
 ## Notes
 
