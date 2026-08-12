@@ -361,8 +361,7 @@ class _DesignerPageState extends State<DesignerPage> {
             final current = _document.selectedElement;
             if (current == null) return;
             final currentWidth = _number(current['w']);
-            final maxX =
-                (widthMm - currentWidth).clamp(0, widthMm).toDouble();
+            final maxX = (widthMm - currentWidth).clamp(0, widthMm).toDouble();
             final x = (_number(current['x']) + details.delta.dx / scale)
                 .clamp(0, maxX)
                 .toDouble();
