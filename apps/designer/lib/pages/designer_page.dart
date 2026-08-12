@@ -37,6 +37,7 @@ class _DesignerPageState extends State<DesignerPage> {
   late final DesignerDocumentController _document;
   String? _templateId;
   bool _storageReady = false;
+  bool _mediumElementsVisible = false;
 
   final Map<String, dynamic> _mockData = {
     'shop': {'name': 'ร้าน Dexter Coffee', 'branch': 'นิมมาน'},
@@ -67,8 +68,9 @@ class _DesignerPageState extends State<DesignerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final desktop = MediaQuery.sizeOf(context).width >=
-        DesignerLayout.compactDesktopBreakpoint;
+    final width = MediaQuery.sizeOf(context).width;
+    final desktop = width >= DesignerLayout.compactDesktopBreakpoint;
+    final medium = width >= DesignerLayout.collapsiblePanelBreakpoint;
 
     return KeyboardListener(
       focusNode: _keyboardFocus,
@@ -76,35 +78,33 @@ class _DesignerPageState extends State<DesignerPage> {
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
         body: SafeArea(
-          child: desktop ? _desktopWorkspace() : _compactWorkspace(),
+          child: desktop
+              ? _desktopWorkspace()
+              : medium
+                  ? _mediumWorkspace()
+                  : _compactWorkspace(),
         ),
       ),
     );
   }
 
   Widget _desktopWorkspace() {
-    final paper = _document.paper;
-    final widthMm = _number(paper['widthMm'], fallback: 80);
-    final heightMm = paper['autoHeight'] == true
-        ? 200.0
-        : _number(paper['heightMm'], fallback: 200);
-
     return DesignerAppShell(
       toolbar: _toolbar(),
       leftPanel: _leftPanel(expandWidth: true),
       workspace: _canvas(),
       rightPanel: _rightPanel(expandWidth: true),
-      statusBar: DesignerStatusBar(
-        leading: Text(
-          '${paper['type']?.toString().toUpperCase() ?? 'PDF'} · '
-          '${widthMm.toStringAsFixed(1)} × ${heightMm.toStringAsFixed(1)} mm',
-        ),
-        center: const Text('5 mm snap grid · rulers in mm'),
-        trailing: ZoomControl(
-          value: _document.zoom,
-          onChanged: (value) => setState(() => _document.setZoom(value)),
-        ),
-      ),
+      statusBar: _statusBar(),
+    );
+  }
+
+  Widget _mediumWorkspace() {
+    return DesignerAppShell(
+      toolbar: _toolbar(showElementsToggle: true),
+      leftPanel: _mediumElementsVisible ? _leftPanel(expandWidth: true) : null,
+      workspace: _canvas(),
+      rightPanel: _rightPanel(expandWidth: true),
+      statusBar: _statusBar(),
     );
   }
 
@@ -129,7 +129,27 @@ class _DesignerPageState extends State<DesignerPage> {
     );
   }
 
-  Widget _toolbar() {
+  Widget _statusBar() {
+    final paper = _document.paper;
+    final widthMm = _number(paper['widthMm'], fallback: 80);
+    final heightMm = paper['autoHeight'] == true
+        ? 200.0
+        : _number(paper['heightMm'], fallback: 200);
+
+    return DesignerStatusBar(
+      leading: Text(
+        '${paper['type']?.toString().toUpperCase() ?? 'PDF'} · '
+        '${widthMm.toStringAsFixed(1)} × ${heightMm.toStringAsFixed(1)} mm',
+      ),
+      center: const Text('5 mm snap grid · rulers in mm'),
+      trailing: ZoomControl(
+        value: _document.zoom,
+        onChanged: (value) => setState(() => _document.setZoom(value)),
+      ),
+    );
+  }
+
+  Widget _toolbar({bool showElementsToggle = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: DesignerSpacing.md),
       child: Row(
@@ -144,6 +164,17 @@ class _DesignerPageState extends State<DesignerPage> {
               style: DesignerTypography.appTitle,
             ),
           ),
+          if (showElementsToggle) ...[
+            ToolbarButton(
+              icon: Icons.view_sidebar_outlined,
+              tooltip: 'Toggle Elements',
+              selected: _mediumElementsVisible,
+              onPressed: () => setState(
+                () => _mediumElementsVisible = !_mediumElementsVisible,
+              ),
+            ),
+            const SizedBox(width: DesignerSpacing.sm),
+          ],
           ToolbarButton(
             icon: Icons.undo,
             tooltip: 'Undo',
