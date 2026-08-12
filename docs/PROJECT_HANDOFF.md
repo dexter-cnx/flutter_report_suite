@@ -119,6 +119,8 @@ Coverage includes:
 
 **Status: ✅ MERGED / COMPLETE — 2026-08-12**
 
+Phase 2 PR was merged to `main` before Phase 3 started.
+
 ## 5. Save / Load / Import / Export
 
 **Status: ✅ COMPLETED**
@@ -205,6 +207,12 @@ Pull request:
 PR #7 — Agent/phase 3 printer engine
 ```
 
+Reviewed head:
+
+```text
+97a831c14ab83ff10f93147e7a3942846eb639dd
+```
+
 Validation state:
 
 - maintainer local validation: ✅ PASS
@@ -226,15 +234,45 @@ Validation state:
 
 Implemented:
 
+```dart
+enum ThaiEncoding {
+  tis620,
+  cp874,
+  rasterImage,
+}
+```
+
+Public configuration uses only valid construction paths:
+
+```dart
+EscPosEncodingConfig.tis620(codeTable: ...)
+EscPosEncodingConfig.cp874(codeTable: ...)
+EscPosEncodingConfig.raster()
+```
+
+There is no public general-purpose constructor that can create a TIS-620/CP874 configuration without a code table. This keeps the invariant valid in release builds as well as debug builds.
+
+Implemented:
+
 - TIS-620 byte encoding
 - CP874 byte encoding/extensions
 - printer-specific code table selection
 - rasterized Thai fallback
 - bundled Noto Sans Thai raster rendering
 - encoding isolated from transport
-- Thai quick-receipt coverage including `กุ้ง`, `น้ำ`, `ยอดรวม`, mixed Thai/English, and Thai numerals
+- `กุ้ง`
+- `น้ำ`
+- `ยอดรวม`
+- mixed Thai/English
+- Thai numerals
 
-Quick-receipt item layout preserves the original **8/2/2** semantic columns.
+Quick-receipt item layout preserves the original **8/2/2** semantic columns:
+
+- item name: width 8, left aligned
+- quantity: width 2, centered
+- price: width 2, right aligned
+
+Legacy output uses ESC/POS row layout. Code-page/raster paths provide equivalent fixed/measured column layout.
 
 **Physical printer compatibility remains pending.**
 
@@ -242,10 +280,22 @@ Quick-receipt item layout preserves the original **8/2/2** semantic columns.
 
 **Status: ✅ COMPLETED**
 
-Implemented:
+Core domain model:
 
-- `PrinterConnectionType`
-- `UnifiedPrinter`
+```dart
+enum PrinterConnectionType {
+  system,
+  usb,
+  network,
+  bluetooth,
+  embedded,
+}
+```
+
+`UnifiedPrinter` does not expose raw plugin objects.
+
+`PrinterDiscoveryService.discoverAll()` provides:
+
 - source composition
 - deterministic IDs where available
 - deduplication
@@ -266,11 +316,13 @@ Important limitation:
 
 **Status: ✅ COMPLETED — SOFTWARE VALIDATION**
 
-Sunmi support is isolated in:
+Sunmi is isolated in:
 
 ```text
 packages/report_engine_sunmi
 ```
+
+Reason: `sunmi_printer_plus` is Android-specific, so direct inclusion in core would contaminate Web/Desktop/iOS dependency boundaries.
 
 Implemented:
 
@@ -280,13 +332,49 @@ Implemented:
 - optional cutter capability
 - optional cash-drawer capability
 
-Safe capability exposure is controlled by verified `SunmiHardwareProfile` values. Physical Sunmi verification remains pending.
+### Safe capability model
+
+`SunmiPrinterAdapter` is **print-only by default**.
+
+The host must supply a verified device profile before optional hardware operations are exposed:
+
+```dart
+const SunmiHardwareProfile(
+  supportsCutter: true,
+  supportsCashDrawer: false,
+)
+```
+
+The adapter factory returns capability-bearing implementations only when the supplied hardware profile confirms support. Therefore a model without a cutter does not pass `is CutterCapability`, and a model without a cash-drawer port does not pass `is CashDrawerCapability`.
+
+Do not infer Sunmi model capabilities without hardware/device inventory evidence.
+
+**Physical Sunmi verification remains pending.**
+
+See:
+
+```text
+docs/PHASE3_SUNMI_ADAPTER_AUDIT.md
+```
 
 ## 12. Hardware capabilities
 
 **Status: ✅ COMPLETED**
 
-Rules enforced:
+Core contracts:
+
+```dart
+abstract interface class CutterCapability {
+  Future<void> cutPaper();
+}
+
+abstract interface class CashDrawerCapability {
+  Future<void> openCashDrawer();
+  Future<bool> isCashDrawerOpen();
+}
+```
+
+Rules now enforced:
 
 - `PdfRenderService` has no hardware commands
 - `EscPosRenderer` has no implicit cut command
@@ -302,11 +390,15 @@ Validation evidence:
 docs/PHASE3_TASK9_11_VALIDATION.md
 ```
 
+The file name is historical; its content records Tasks 9–12.
+
 ---
 
 # PHASE 4 — HARDENING
 
 **Status: ✅ MERGED / COMPLETE — 2026-08-12**
+
+> Handoff status was prepared on the Phase 4 branch immediately before merging PR #8. At the time of this documentation commit, implementation and validation are complete and the only remaining Phase 4 action is the GitHub merge itself.
 
 Branch:
 
@@ -318,6 +410,12 @@ Pull request:
 
 ```text
 PR #8 — Phase 4 hardening: CI, rendering regressions, and printer docs
+```
+
+Validated head before merge:
+
+```text
+eab0b86b7f720f5e53afbcb6eb058a982ee78e3e
 ```
 
 GitHub Actions validation:
@@ -342,13 +440,59 @@ All nine jobs passed:
 
 **Status: ✅ COMPLETED**
 
-`.github/workflows/ci.yml` validates all required package/app scopes under Flutter **3.32.7**.
+`.github/workflows/ci.yml` now uses Flutter **3.32.7** and directly validates all required package/app scopes.
+
+### report_engine
+
+- pub get
+- format check
+- analyze
+- tests + coverage
+
+### report_engine_sunmi
+
+Dedicated companion-package quality job:
+
+- pub get
+- format check
+- analyze
+- tests
+
+### designer
+
+- pub get
+- format check
+- analyze
+- tests + coverage
+
+### build matrix
+
+Retained and validated:
+
+- Web release
+- Android APK
+- Linux release
+- Windows release
+- macOS release
+- iOS simulator
+
+### example
+
+Validated:
+
+- pub get
+- format check
+- analyze
+- tests
+- Android debug APK build
+
+The Phase 4 CI gate also exposed formatting debt from earlier work; those files were normalized rather than weakening or narrowing the format checks.
 
 ## 14. Rendering regression tests
 
 **Status: ✅ COMPLETED**
 
-Coverage protects:
+Deterministic/stable regression coverage now protects:
 
 - Thermal 80mm
 - Thermal 58mm
@@ -357,7 +501,16 @@ Coverage protects:
 - multi-page pagination
 - Thai A4 invoice
 
-Assertions prefer stable PDF properties over raw byte equality.
+Regression assertions deliberately prefer stable PDF properties over raw PDF byte equality:
+
+- `%PDF-` header / valid PDF structure
+- `%%EOF`
+- page-object count
+- `/MediaBox` dimensions
+- pagination behavior
+- minimum output-size sanity for Thai font embedding
+
+This avoids false failures from timestamps, metadata, and nondeterministic PDF object details while still detecting rendering regressions.
 
 ## 15. Documentation
 
@@ -372,12 +525,21 @@ docs/PHASE4_HARDENING_VALIDATION.md
 docs/PROJECT_HANDOFF.md
 ```
 
+Printer compatibility documentation separates:
+
+- Implemented software
+- Automated test coverage
+- Emulator/simulator verification
+- Physical hardware verification
+
 Candidate hardware documented:
 
 - XP-80
 - XP-58
 - Epson TM-T88V
 - Sunmi V2
+
+None of these models are marked physically verified without real hardware evidence.
 
 Hardware-dependent compatibility remains:
 
@@ -409,7 +571,7 @@ Merge commit:
 be3378a69794732e12935ea594aa09a4a9b9e2e4
 ```
 
-Phase 5 validation summary:
+Validation:
 
 - PR CI run #68: ✅ SUCCESS
 - post-merge CI run #69 / run id `31591471768`: ✅ SUCCESS
@@ -420,22 +582,22 @@ Phase 5 validation summary:
 
 **Status: ✅ COMPLETED**
 
-Implemented:
+Completed:
 
-- package metadata for pub.dev
-- repository and issue tracker links
-- topics
-- package-level `LICENSE`
-- `CHANGELOG.md`
-- release-oriented package README
-- `flutter pub publish --dry-run` in CI
+- description / repository / issue tracker metadata
+- pub.dev topics
+- package-level license
+- package README
+- CHANGELOG
+- publication artifact review
+- `flutter pub publish --dry-run` as a CI gate
 
 Publication strategy:
 
-- `report_engine` — publish-ready candidate for `v1.0.0`
-- `report_engine_sunmi` — remains unpublished in this release cycle
+- `report_engine` — publish-ready `1.0.0` candidate
+- `report_engine_sunmi` — remains unpublished for this release cycle
 
-Dry-run validation:
+Dry-run result:
 
 ```text
 report_engine • format + analyze + test + publish dry-run — ✅ PASS
@@ -445,27 +607,25 @@ report_engine • format + analyze + test + publish dry-run — ✅ PASS
 
 **Status: ✅ COMPLETED**
 
+GitHub Pages replaced the earlier Firebase Hosting proposal because Designer is a static, backend-free Flutter Web application.
+
 Deployment target:
 
 ```text
 https://dexter-cnx.github.io/flutter_report_suite/
 ```
 
-Implemented:
+Implemented and validated:
 
 - dedicated `.github/workflows/pages.yml`
-- GitHub Pages deployment via **GitHub Actions**
-- Designer Web build with base href `/flutter_report_suite/`
-- web metadata updates for Pages deployment
-- deployment and smoke-test guidance in `docs/PHASE5_RELEASE_AND_DEPLOYMENT.md`
+- GitHub Pages publishing source: GitHub Actions
+- build base href `/flutter_report_suite/`
+- Web metadata updates
+- workflow build: ✅ PASS
+- workflow deploy: ✅ PASS
+- live site smoke test: ✅ PASS
 
-Validated:
-
-- Pages configured for workflow-based deployment
-- workflow build job: ✅ PASS
-- workflow deploy job: ✅ PASS
-- live site opens successfully: ✅ PASS
-- maintainer-confirmed Pages smoke test: ✅ PASS
+No SPA rewrite workaround is required by the current Designer navigation because the app currently uses `MaterialApp(home: ...)` rather than path-based deep-link routing.
 
 ---
 
@@ -512,6 +672,6 @@ until tested on actual devices.
 1. Create and push the `v1.0.0` tag.
 2. Create the GitHub Release for `v1.0.0`.
 3. Publish `packages/report_engine` to pub.dev.
-4. Keep `report_engine_sunmi` unpublished until a separate release decision is made.
+4. Keep `report_engine_sunmi` unpublished until its own release decision and dependency strategy are approved.
 5. Record physical printer validation evidence when hardware becomes available.
-6. Optionally start a post-v1 design/UX improvement phase for Designer.
+6. Treat Designer visual/UX modernization as post-v1 work so it does not block the validated release baseline.
