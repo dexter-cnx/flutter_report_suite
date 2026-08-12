@@ -121,8 +121,14 @@ void main() {
       ),
     );
 
-    expect(find.byKey(const ValueKey('selection-handle-top-left')), findsOneWidget);
-    expect(find.byKey(const ValueKey('selection-handle-top-right')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('selection-handle-top-left')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('selection-handle-top-right')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('selection-handle-bottom-left')),
       findsOneWidget,
