@@ -7,10 +7,26 @@ class TemplateGalleryPage extends StatelessWidget {
   const TemplateGalleryPage({super.key});
 
   static const _templates = <({String title, String asset, IconData icon})>[
-    (title: '80mm Receipt', asset: 'assets/templates/thermal_80.json', icon: Icons.receipt_long),
-    (title: '58mm Receipt', asset: 'assets/templates/thermal_58.json', icon: Icons.receipt),
-    (title: 'A4 Invoice', asset: 'assets/templates/a4_invoice.json', icon: Icons.description),
-    (title: '4x6 Sticker', asset: 'assets/templates/sticker_4x6.json', icon: Icons.sell),
+    (
+      title: '80mm Receipt',
+      asset: 'assets/templates/thermal_80.json',
+      icon: Icons.receipt_long,
+    ),
+    (
+      title: '58mm Receipt',
+      asset: 'assets/templates/thermal_58.json',
+      icon: Icons.receipt,
+    ),
+    (
+      title: 'A4 Invoice',
+      asset: 'assets/templates/a4_invoice.json',
+      icon: Icons.description,
+    ),
+    (
+      title: '4x6 Sticker',
+      asset: 'assets/templates/sticker_4x6.json',
+      icon: Icons.sell,
+    ),
   ];
 
   @override
@@ -23,7 +39,7 @@ class TemplateGalleryPage extends StatelessWidget {
           final columns = width >= 1100 ? 4 : width >= 700 ? 2 : 1;
           return GridView.count(
             crossAxisCount: columns,
-            childAspectRatio: columns == 1 ? 2.7 : 1.5,
+            childAspectRatio: columns == 1 ? 2.7 : 1.45,
             padding: const EdgeInsets.all(20),
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
@@ -42,15 +58,23 @@ class TemplateGalleryPage extends StatelessWidget {
       child: InkWell(
         onTap: () => _openDesigner(context),
         child: const Padding(
-          padding: EdgeInsets.all(20),
+          padding: EdgeInsets.all(12),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add_circle_outline, size: 48),
-              SizedBox(height: 12),
-              Text('Blank Template', style: TextStyle(fontWeight: FontWeight.bold)),
+              Icon(Icons.add_circle_outline, size: 40),
+              SizedBox(height: 8),
+              Text(
+                'Blank Template',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               SizedBox(height: 4),
-              Text('Create a new report from scratch'),
+              Text(
+                'Create a new report from scratch',
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
@@ -66,7 +90,8 @@ class TemplateGalleryPage extends StatelessWidget {
       child: InkWell(
         onTap: () async {
           try {
-            final template = await TemplateStorageService().loadFromAssets(item.asset);
+            final template =
+                await TemplateStorageService().loadFromAssets(item.asset);
             if (!context.mounted) return;
             _openDesigner(
               context,
@@ -81,15 +106,24 @@ class TemplateGalleryPage extends StatelessWidget {
           }
         },
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(12),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(item.icon, size: 48),
-              const SizedBox(height: 12),
-              Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Icon(item.icon, size: 40),
+              const SizedBox(height: 8),
+              Text(
+                item.title,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 4),
-              const Text('Built-in • opens as editable copy'),
+              const Text(
+                'Built-in • opens as editable copy',
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
