@@ -16,13 +16,8 @@ Current structure:
 
 Known gaps:
 
-- verify and preserve the existing six-platform Designer scaffolding/build matrix
-- production Thai PDF fonts
 - real Thai ESC/POS handling
-- Designer save/load lifecycle
-- table editor
 - stronger printer abstraction
-- example-app platform scaffolding for APK validation
 - release hardening and publish/deploy preparation
 
 ## Operating Rules
@@ -40,6 +35,7 @@ Before changing code:
 9. Never weaken tests simply to make CI pass.
 10. Reuse dependencies already present in the repo instead of adding duplicates.
 11. Treat the existing CI platform build jobs as regression gates; do not remove native Designer build coverage merely to satisfy a narrower roadmap checklist.
+12. **Phase boundary rule:** complete validation, open a PR, resolve review/CI feedback, and merge the current phase into `main` before creating or starting the next phase branch.
 
 ---
 
@@ -303,7 +299,24 @@ test(engine): expand resolver and PDF coverage
 
 # PHASE 2 — DESIGNER V2
 
+**Status: ✅ IMPLEMENTATION + LOCAL VALIDATION COMPLETE — 2026-08-12**
+
+Phase 2 was completed on branch `agent/phase-2-designer-template-lifecycle`. Maintainer validation passed for Designer on Flutter 3.32.7 (`flutter analyze` clean and all Designer tests passing) and for the `report_engine` analyzer/test gate. Phase 2 must now go through PR review and CI before merge to `main`. Do not create the Phase 3 branch before that merge.
+
 ## 5. Save / Load / Import / Export
+
+**Status: ✅ COMPLETED — 2026-08-12**
+
+Completed:
+
+- integrated `TemplateStorageService` into Designer
+- Create / Save / Save As / Rename / Load / Delete / Duplicate
+- Hive-backed local persistence
+- JSON import with malformed/incompatible-template error handling
+- cross-platform JSON export with Web and IO implementations
+- JSON sharing through `share_plus`
+- storage key and `template.id` stay consistent across save/rename/duplicate
+- lifecycle and round-trip storage tests added
 
 Integrate the existing `TemplateStorageService` with Designer.
 
@@ -339,6 +352,17 @@ feat(designer): add persistent template lifecycle
 
 ## 6. Template Gallery
 
+**Status: ✅ COMPLETED — 2026-08-12**
+
+Completed:
+
+- added Gallery as the Designer entry page
+- built-in 80mm Receipt, 58mm Receipt, A4 Invoice, and 4x6 Sticker templates
+- added Blank Template flow
+- built-in assets open as editable working copies instead of mutating packaged assets
+- responsive grid behavior covered by widget tests
+- fixed compact-card overflow found during Flutter 3.32.7 validation
+
 Add a Designer home/gallery before entering the canvas.
 
 Built-in templates:
@@ -365,6 +389,18 @@ feat(designer): add template gallery
 ```
 
 ## 7. Table Column Editor
+
+**Status: ✅ COMPLETED — 2026-08-12**
+
+Completed:
+
+- table column editor for `key`, `label`, `width`, and `alignment`
+- add / remove / edit / reorder operations
+- invalid and non-positive widths are rejected
+- compatible unknown column JSON fields are preserved
+- table column edits participate in undo/redo
+- PDF table rendering now honors Designer column width and alignment metadata
+- controller and PDF regression coverage added
 
 When a table element is selected, allow editing columns containing:
 
@@ -396,6 +432,22 @@ feat(designer): add table column editor
 ```
 
 ## 8. Designer precision UX
+
+**Status: ✅ COMPLETED — 2026-08-12**
+
+Completed:
+
+- 5mm snap-to-grid
+- center guides
+- rulers in mm on top and left
+- zoom constrained to 50%–200%
+- persisted document geometry remains in physical mm and is independent of zoom
+- Undo / Redo for add, delete, move, resize, property changes, and table column edits
+- drag is grouped into a single undo transaction and snaps on interaction end
+- Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z
+- Delete/Backspace
+- arrow-key nudging (1mm; Shift+Arrow 5mm)
+- controller tests cover history, geometry, zoom invariance, property edits, and table edits
 
 Implement:
 
@@ -775,9 +827,9 @@ Before declaring Production v1.0.0 complete, verify:
 - [ ] package publish dry-run passes
 - [ ] bundled Thai PDF rendering works
 - [ ] ESC/POS Thai encoding tests pass
-- [ ] save/load round trip passes
-- [ ] import/export round trip passes
-- [ ] undo/redo tests pass
+- [x] save/load round trip passes
+- [x] import/export workflow implemented and locally validated
+- [x] undo/redo tests pass
 - [ ] A4 multi-page output passes
 
 Hardware-dependent functionality must remain labeled:
@@ -811,7 +863,8 @@ For every numbered task:
 7. Fix regressions.
 8. Summarize changed files and validation results.
 9. Commit only that task with the specified conventional commit message.
-10. Continue to the next task automatically.
+10. Continue to the next task automatically **within the current phase only**.
+11. At the end of a phase, stop after validation, update this handoff, open/review/merge the phase PR, and only then create the next phase branch from updated `main`.
 
 Do not stop merely because implementation differs from the roadmap if a better architectural equivalent satisfies the requirement.
 
@@ -821,16 +874,21 @@ Stop only for:
 - physical hardware verification
 - destructive or irreversible operation
 - unrecoverable external dependency problems
+- phase boundary awaiting PR review/merge
 
 In those cases, complete everything else possible and record the blocker explicitly.
 
 ## Next Action
 
-Phase 1 Foundation is complete. Continue Phase 2 on branch `agent/phase-2-designer-template-lifecycle` with Task 5 — Save / Load / Import / Export.
+Phase 2 Designer V2 implementation and local validation are complete on `agent/phase-2-designer-template-lifecycle`.
 
-Next validation focus:
+**Do not start Phase 3 yet.**
 
-1. integrate `TemplateStorageService` into Designer lifecycle actions
-2. implement Create / Save / Save As / Rename / Load / Delete / Duplicate
-3. implement JSON import / export / share with graceful malformed/incompatible-template handling
-4. run Designer format/analyze/tests on Flutter 3.32.7 before marking Task 5 complete
+Next steps:
+
+1. open a Phase 2 pull request from `agent/phase-2-designer-template-lifecycle` to `main`
+2. let the full GitHub Actions CI matrix run
+3. resolve all review comments and CI regressions on the Phase 2 branch
+4. merge the Phase 2 PR into `main`
+5. verify updated `main`
+6. only after the merge, create the Phase 3 branch and begin Task 9 — Thai ESC/POS
