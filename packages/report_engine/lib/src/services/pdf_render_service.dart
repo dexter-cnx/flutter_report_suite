@@ -212,7 +212,12 @@ class PdfRenderService {
 
   dynamic _valueFor(ReportElement element, Map<String, dynamic> data) {
     if (element.type == 'text') return element.key ?? '';
-    return _resolver.resolve(element.key, data);
+    if (element.type == 'table' ||
+        element.type == 'qrcode' ||
+        element.type == 'barcode') {
+      return _resolver.resolve(element.key, data);
+    }
+    return _resolver.resolveText(element.key, data);
   }
 
   pw.TextStyle _textStyle({required double fontSize, bool bold = false}) {
