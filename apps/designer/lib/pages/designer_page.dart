@@ -79,10 +79,10 @@ class _DesignerPageState extends State<DesignerPage> {
         ],
       ),
       body: isWide
-          ? Row(children: [_leftPanel(), _canvas(expanded: true), _rightPanel()])
+          ? Row(children: [_leftPanel(), _canvas(), _rightPanel()])
           : Column(
               children: [
-                _canvas(expanded: true),
+                _canvas(),
                 SizedBox(
                   height: 230,
                   child: Row(
@@ -114,14 +114,17 @@ class _DesignerPageState extends State<DesignerPage> {
                   _widthMm = 80;
                   _heightMm = 200;
                   _autoHeight = true;
+                  break;
                 case 'a4':
                   _widthMm = 210;
                   _heightMm = 297;
                   _autoHeight = false;
+                  break;
                 case 'pdf':
                   _widthMm = 80;
                   _heightMm = 200;
                   _autoHeight = false;
+                  break;
               }
             });
           },
@@ -134,7 +137,10 @@ class _DesignerPageState extends State<DesignerPage> {
         child: ListView(
           children: [
             const ListTile(
-              title: Text('Add Element', style: TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(
+                'Add Element',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
             _addButton('Text', Icons.text_fields, 'text'),
             _addButton('Dynamic {{field}}', Icons.data_object, 'dynamic_text'),
@@ -148,7 +154,7 @@ class _DesignerPageState extends State<DesignerPage> {
               title: Text('Paper: ${_widthMm.toStringAsFixed(0)} mm'),
             ),
             Slider(
-              value: _widthMm.clamp(48, 210),
+              value: _widthMm.clamp(48, 210).toDouble(),
               min: 48,
               max: 210,
               divisions: 162,
@@ -172,28 +178,30 @@ class _DesignerPageState extends State<DesignerPage> {
         onTap: () => _addElement(type),
       );
 
-  Widget _canvas({required bool expanded}) {
-    final content = ColoredBox(
-      color: Colors.grey.shade300,
-      child: InteractiveViewer(
-        minScale: 0.5,
-        maxScale: 3,
-        boundaryMargin: const EdgeInsets.all(100),
-        child: Center(
-          child: Container(
-            width: _widthMm * _canvasScale,
-            height: (_autoHeight ? 200 : _heightMm) * _canvasScale,
-            color: Colors.white,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: _elements.map(_positionedElement).toList(growable: false),
+  Widget _canvas() => Expanded(
+        flex: 3,
+        child: ColoredBox(
+          color: Colors.grey.shade300,
+          child: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 3,
+            boundaryMargin: const EdgeInsets.all(100),
+            child: Center(
+              child: Container(
+                width: _widthMm * _canvasScale,
+                height: (_autoHeight ? 200 : _heightMm) * _canvasScale,
+                color: Colors.white,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: _elements
+                      .map(_positionedElement)
+                      .toList(growable: false),
+                ),
+              ),
             ),
           ),
         ),
-      ),
-    );
-    return expanded ? Expanded(flex: 3, child: content) : content;
-  }
+      );
 
   Widget _positionedElement(Map<String, dynamic> element) {
     final selected = element['id'] == _selectedId;
@@ -205,13 +213,15 @@ class _DesignerPageState extends State<DesignerPage> {
         onPanUpdate: (details) {
           setState(() {
             final width = _number(element['w']);
-            final maxX = (_widthMm - width).clamp(0, _widthMm);
-            element['x'] = (_number(element['x']) + details.delta.dx / _canvasScale)
-                .clamp(0, maxX)
-                .toDouble();
-            element['y'] = (_number(element['y']) + details.delta.dy / _canvasScale)
-                .clamp(0, 1000)
-                .toDouble();
+            final maxX = (_widthMm - width).clamp(0, _widthMm).toDouble();
+            element['x'] =
+                (_number(element['x']) + details.delta.dx / _canvasScale)
+                    .clamp(0, maxX)
+                    .toDouble();
+            element['y'] =
+                (_number(element['y']) + details.delta.dy / _canvasScale)
+                    .clamp(0, 1000)
+                    .toDouble();
           });
         },
         child: Container(
@@ -240,8 +250,10 @@ class _DesignerPageState extends State<DesignerPage> {
       return ColoredBox(
         color: Colors.black12,
         child: Center(
-          child: Text(element['key']?.toString() ?? '{{items}}',
-              style: const TextStyle(fontSize: 8)),
+          child: Text(
+            element['key']?.toString() ?? '{{items}}',
+            style: const TextStyle(fontSize: 8),
+          ),
         ),
       );
     }
@@ -255,7 +267,8 @@ class _DesignerPageState extends State<DesignerPage> {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: _number(style['fontSize'], fallback: 10) * 0.8,
-          fontWeight: style['bold'] == true ? FontWeight.bold : FontWeight.normal,
+          fontWeight:
+              style['bold'] == true ? FontWeight.bold : FontWeight.normal,
         ),
       ),
     );
@@ -287,34 +300,44 @@ class _DesignerPageState extends State<DesignerPage> {
             onFieldSubmitted: (value) => setState(() => selected['key'] = value),
           ),
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _numberField(selected, 'x', 'X')),
-            const SizedBox(width: 8),
-            Expanded(child: _numberField(selected, 'y', 'Y')),
-          ]),
-          Row(children: [
-            Expanded(child: _numberField(selected, 'w', 'W')),
-            const SizedBox(width: 8),
-            Expanded(child: _numberField(selected, 'h', 'H')),
-          ]),
+          Row(
+            children: [
+              Expanded(child: _numberField(selected, 'x', 'X')),
+              const SizedBox(width: 8),
+              Expanded(child: _numberField(selected, 'y', 'Y')),
+            ],
+          ),
+          Row(
+            children: [
+              Expanded(child: _numberField(selected, 'w', 'W')),
+              const SizedBox(width: 8),
+              Expanded(child: _numberField(selected, 'h', 'H')),
+            ],
+          ),
           const SizedBox(height: 12),
-          Row(children: [
-            const Text('Font'),
-            Expanded(
-              child: Slider(
-                value: _number(style['fontSize'], fallback: 10).clamp(6, 30),
-                min: 6,
-                max: 30,
-                onChanged: (value) => setState(() => style['fontSize'] = value),
+          Row(
+            children: [
+              const Text('Font'),
+              Expanded(
+                child: Slider(
+                  value: _number(style['fontSize'], fallback: 10)
+                      .clamp(6, 30)
+                      .toDouble(),
+                  min: 6,
+                  max: 30,
+                  onChanged: (value) =>
+                      setState(() => style['fontSize'] = value),
+                ),
               ),
-            ),
-            Text(_number(style['fontSize'], fallback: 10).toStringAsFixed(0)),
-          ]),
+              Text(_number(style['fontSize'], fallback: 10).toStringAsFixed(0)),
+            ],
+          ),
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Bold'),
             value: style['bold'] == true,
-            onChanged: (value) => setState(() => style['bold'] = value == true),
+            onChanged: (value) =>
+                setState(() => style['bold'] = value == true),
           ),
           DropdownButtonFormField<String>(
             value: style['align']?.toString() ?? 'left',
@@ -324,7 +347,8 @@ class _DesignerPageState extends State<DesignerPage> {
               DropdownMenuItem(value: 'center', child: Text('Center')),
               DropdownMenuItem(value: 'right', child: Text('Right')),
             ],
-            onChanged: (value) => setState(() => style['align'] = value ?? 'left'),
+            onChanged: (value) =>
+                setState(() => style['align'] = value ?? 'left'),
           ),
           const SizedBox(height: 16),
           FilledButton.tonalIcon(
@@ -337,7 +361,11 @@ class _DesignerPageState extends State<DesignerPage> {
     );
   }
 
-  Widget _numberField(Map<String, dynamic> element, String key, String label) {
+  Widget _numberField(
+    Map<String, dynamic> element,
+    String key,
+    String label,
+  ) {
     return TextFormField(
       key: ValueKey('$key-${element['id']}-${element[key]}'),
       initialValue: _number(element[key]).toStringAsFixed(1),
@@ -358,9 +386,15 @@ class _DesignerPageState extends State<DesignerPage> {
       'key': _defaultKey(type),
       'x': 5.0,
       'y': 5.0 + (_elements.length * 12),
-      'w': type == 'line' ? (_widthMm - 10).clamp(10, _widthMm) : 60.0,
+      'w': type == 'line'
+          ? (_widthMm - 10).clamp(10, _widthMm).toDouble()
+          : 60.0,
       'h': type == 'qrcode' || type == 'barcode' ? 30.0 : 8.0,
-      'style': {'fontSize': type == 'text' ? 12.0 : 10.0, 'bold': false, 'align': 'left'},
+      'style': {
+        'fontSize': type == 'text' ? 12.0 : 10.0,
+        'bold': false,
+        'align': 'left',
+      },
     };
     if (type == 'table') {
       element['columns'] = [
@@ -401,7 +435,10 @@ class _DesignerPageState extends State<DesignerPage> {
 
   Future<void> _previewPdf() async {
     try {
-      final pdf = await _printer.generatePdf(templateJson: _templateJson, data: _mockData);
+      final pdf = await _printer.generatePdf(
+        templateJson: _templateJson,
+        data: _mockData,
+      );
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -430,7 +467,10 @@ class _DesignerPageState extends State<DesignerPage> {
           child: SingleChildScrollView(child: SelectableText(json)),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );
