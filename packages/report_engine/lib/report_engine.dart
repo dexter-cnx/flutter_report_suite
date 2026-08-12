@@ -1,6 +1,7 @@
 library report_engine;
 
 export 'src/models/report_template.dart';
+export 'src/printer/capabilities/printer_hardware_capabilities.dart';
 export 'src/printer/discovery/bluetooth_printer_discovery.dart';
 export 'src/printer/discovery/printer_discovery_service.dart';
 export 'src/printer/discovery/printer_discovery_source.dart';
