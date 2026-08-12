@@ -12,16 +12,17 @@ Current structure:
 
 - `packages/report_engine` — PDF, thermal, ESC/POS, Hive/template storage
 - `apps/designer` — drag/drop report designer
-- existing CI — analyze/test coverage already exists
+- existing CI — analyze/test coverage plus compile-level validation for Designer on Android, iOS simulator, Web, Linux, macOS, and Windows
 
 Known gaps:
 
-- missing/incomplete platform folders
+- verify and preserve the existing six-platform Designer scaffolding/build matrix
 - production Thai PDF fonts
 - real Thai ESC/POS handling
 - Designer save/load lifecycle
 - table editor
 - stronger printer abstraction
+- example-app platform scaffolding for APK validation
 - release hardening and publish/deploy preparation
 
 ## Operating Rules
@@ -38,6 +39,7 @@ Before changing code:
 8. If a roadmap instruction conflicts with the existing architecture, implement the architectural equivalent and document the deviation.
 9. Never weaken tests simply to make CI pass.
 10. Reuse dependencies already present in the repo instead of adding duplicates.
+11. Treat the existing CI platform build jobs as regression gates; do not remove native Designer build coverage merely to satisfy a narrower roadmap checklist.
 
 ---
 
@@ -70,32 +72,48 @@ Do not modify code until the audit is complete.
 
 # PHASE 1 — FOUNDATION
 
-## 1. Restore runnable platforms
+## 1. Verify and preserve runnable Designer platforms
 
-For `apps/designer`, ensure support for:
+The current repository already contains Flutter 3.32.7 platform scaffolding for `apps/designer` on:
 
 - Web
-- Windows
 - Android
 - iOS
+- Linux
+- macOS
+- Windows
 
-Use `flutter create` only for missing platform folders.
+Treat this task as **verification/migration of the existing six-platform setup**, not platform restoration.
 
-Do not overwrite application code or project configuration unnecessarily.
+Requirements:
 
-Validate:
+- inspect each existing platform project before changing it
+- preserve application identifiers, signing/configuration placeholders, generated-project customizations, and plugin integration
+- use `flutter create` only if a platform folder is genuinely missing or structurally broken
+- if regeneration is required, diff generated output before accepting it and avoid overwriting app-specific configuration
+- keep all six platforms represented in CI build/smoke coverage
+
+Validate at minimum:
 
 ```bash
 flutter pub get
 flutter analyze
 flutter test
-flutter build web
+flutter build web --release
 ```
+
+Also preserve or run the platform-specific compile gates already represented in CI:
+
+- Android APK
+- Linux desktop
+- Windows desktop
+- macOS desktop
+- iOS simulator
 
 Commit:
 
 ```text
-chore(designer): restore Flutter platform projects
+chore(designer): verify Flutter platform projects
 ```
 
 ## 2. Production Thai PDF fonts
@@ -149,6 +167,14 @@ packages/report_engine/example/
 
 The example must demonstrate the public API of `report_engine`.
 
+Before making Android APK build a CI/release gate, ensure the example has valid Flutter platform scaffolding. At minimum, provision and validate:
+
+```text
+packages/report_engine/example/android/
+```
+
+Use `flutter create` from the example directory only for missing example platform scaffolding and preserve the existing `lib/`, assets, and package configuration.
+
 Required examples:
 
 - Thermal 80mm preview
@@ -175,6 +201,15 @@ final pdf = await printer.generatePdf(
 ```
 
 If the current API differs, preserve compatibility or add a documented facade.
+
+Validation must include a successful example Android compile before Task 13 relies on it:
+
+```bash
+cd packages/report_engine/example
+flutter pub get
+flutter analyze
+flutter build apk --debug
+```
 
 Commit:
 
@@ -488,6 +523,8 @@ refactor(printer): model hardware capabilities
 
 Update `.github/workflows/ci.yml` using Flutter **3.32.7**.
 
+The current CI already has native Designer build gates. **Preserve them.** Task 13 may strengthen or reorganize CI, but must not reduce existing platform compile coverage.
+
 ### report_engine
 
 - pub get
@@ -495,13 +532,21 @@ Update `.github/workflows/ci.yml` using Flutter **3.32.7**.
 - analyze
 - unit tests
 
-### designer
+### designer quality
 
 - pub get
 - format check
 - analyze
 - tests
-- build web
+
+### designer build matrix — required to retain
+
+- Web release build
+- Android APK build
+- Linux release build
+- Windows release build
+- macOS release build
+- iOS simulator build
 
 ### example
 
@@ -510,9 +555,11 @@ Update `.github/workflows/ci.yml` using Flutter **3.32.7**.
 - tests where available
 - build Android APK
 
+The example APK is an additional gate and does **not** replace any Designer native build job.
+
 Use dependency caching where appropriate.
 
-CI must fail on analyzer errors or failing tests.
+CI must fail on analyzer errors, failing tests, or required build-gate failures.
 
 Commit:
 
@@ -668,6 +715,11 @@ Before declaring Production v1.0.0 complete, verify:
 - [ ] analyzer passes
 - [ ] all automated tests pass
 - [ ] Designer Web builds
+- [ ] Designer Android APK builds
+- [ ] Designer Linux build passes
+- [ ] Designer Windows build passes
+- [ ] Designer macOS build passes
+- [ ] Designer iOS simulator build passes
 - [ ] Example Android APK builds
 - [ ] package publish dry-run passes
 - [ ] bundled Thai PDF rendering works
