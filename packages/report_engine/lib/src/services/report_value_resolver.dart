@@ -1,6 +1,8 @@
 class ReportValueResolver {
   const ReportValueResolver();
 
+  static final RegExp _placeholderPattern = RegExp(r'\{\{\s*([^{}]+?)\s*\}\}');
+
   dynamic resolve(String? expression, Map<String, dynamic> data) {
     if (expression == null) return '';
 
@@ -29,6 +31,20 @@ class ReportValueResolver {
   }
 
   String resolveText(String? expression, Map<String, dynamic> data) {
-    return resolve(expression, data).toString();
+    if (expression == null || expression.isEmpty) return '';
+
+    final matches = _placeholderPattern.allMatches(expression).toList(growable: false);
+    if (matches.isEmpty) {
+      return resolve(expression, data).toString();
+    }
+
+    if (matches.length == 1 && matches.single.group(0) == expression.trim()) {
+      return resolve(matches.single.group(1), data).toString();
+    }
+
+    return expression.replaceAllMapped(
+      _placeholderPattern,
+      (match) => resolve(match.group(1), data).toString(),
+    );
   }
 }
