@@ -19,7 +19,8 @@ void main() {
     expect(find.text('4x6 Sticker'), findsOneWidget);
   });
 
-  testWidgets('built-in template opens as an editable working copy', (tester) async {
+  testWidgets('built-in template opens as an editable working copy',
+      (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);

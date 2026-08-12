@@ -54,7 +54,8 @@ class _DesignerPageState extends State<DesignerPage> {
   @override
   void initState() {
     super.initState();
-    _document = DesignerDocumentController(initialTemplate: widget.initialTemplate);
+    _document =
+        DesignerDocumentController(initialTemplate: widget.initialTemplate);
     _templateId = widget.initialTemplateId;
   }
 
@@ -604,8 +605,7 @@ class _DesignerPageState extends State<DesignerPage> {
                     value: _validAlignment(
                       column['alignment'] ?? column['align'],
                     ),
-                    decoration:
-                        const InputDecoration(labelText: 'alignment'),
+                    decoration: const InputDecoration(labelText: 'alignment'),
                     items: const [
                       DropdownMenuItem(value: 'left', child: Text('Left')),
                       DropdownMenuItem(value: 'center', child: Text('Center')),
@@ -632,7 +632,8 @@ class _DesignerPageState extends State<DesignerPage> {
                   tooltip: 'Move column up',
                   onPressed: index > 0
                       ? () => setState(
-                            () => _document.reorderTableColumn(index, index - 1),
+                            () =>
+                                _document.reorderTableColumn(index, index - 1),
                           )
                       : null,
                   icon: const Icon(Icons.arrow_upward),
@@ -641,7 +642,8 @@ class _DesignerPageState extends State<DesignerPage> {
                   tooltip: 'Move column down',
                   onPressed: index < columnCount - 1
                       ? () => setState(
-                            () => _document.reorderTableColumn(index, index + 1),
+                            () =>
+                                _document.reorderTableColumn(index, index + 1),
                           )
                       : null,
                   icon: const Icon(Icons.arrow_downward),
@@ -1024,7 +1026,8 @@ class _DesignerPageState extends State<DesignerPage> {
 
   Future<void> _exportJson() async {
     try {
-      final json = const JsonEncoder.withIndent(' ').convert(_document.document);
+      final json =
+          const JsonEncoder.withIndent(' ').convert(_document.document);
       final exported = await exportTemplateJsonFile(
         fileName: '${_templateId ?? 'report-template'}.json',
         bytes: Uint8List.fromList(utf8.encode(json)),
@@ -1039,7 +1042,8 @@ class _DesignerPageState extends State<DesignerPage> {
 
   Future<void> _shareJson() async {
     try {
-      final json = const JsonEncoder.withIndent('  ').convert(_document.document);
+      final json =
+          const JsonEncoder.withIndent('  ').convert(_document.document);
       await Share.share(
         json,
         subject: '${_templateId ?? 'Report Template'}.json',

@@ -36,7 +36,11 @@ class TemplateGalleryPage extends StatelessWidget {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
-          final columns = width >= 1100 ? 4 : width >= 700 ? 2 : 1;
+          final columns = width >= 1100
+              ? 4
+              : width >= 700
+                  ? 2
+                  : 1;
           return GridView.count(
             crossAxisCount: columns,
             childAspectRatio: columns == 1 ? 2.7 : 1.45,

@@ -176,7 +176,8 @@ class DesignerDocumentController {
     final columns = _columns(element);
     if (index < 0 || index >= columns.length) return;
     if (key == 'width') {
-      final parsed = value is num ? value.toDouble() : double.tryParse('$value');
+      final parsed =
+          value is num ? value.toDouble() : double.tryParse('$value');
       if (parsed == null || parsed <= 0) return;
       value = parsed;
     }
@@ -239,9 +240,8 @@ class DesignerDocumentController {
   static List<Map<String, dynamic>> _columns(Map<String, dynamic> element) {
     final raw = element['columns'];
     if (raw is List) {
-      final normalized = raw
-          .map((value) => Map<String, dynamic>.from(value as Map))
-          .toList();
+      final normalized =
+          raw.map((value) => Map<String, dynamic>.from(value as Map)).toList();
       element['columns'] = normalized;
       return normalized;
     }

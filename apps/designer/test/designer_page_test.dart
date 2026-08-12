@@ -13,7 +13,8 @@ void main() {
     await tester.pumpWidget(buildSubject());
   }
 
-  testWidgets('boots designer with lifecycle and precision controls', (tester) async {
+  testWidgets('boots designer with lifecycle and precision controls',
+      (tester) async {
     await pumpDesktop(tester);
 
     expect(find.text('Report Designer'), findsOneWidget);
@@ -28,7 +29,8 @@ void main() {
     expect(find.textContaining('5 mm snap grid'), findsOneWidget);
   });
 
-  testWidgets('adding text selects it and exposes editable properties', (tester) async {
+  testWidgets('adding text selects it and exposes editable properties',
+      (tester) async {
     await pumpDesktop(tester);
 
     await tester.tap(find.text('Text'));
@@ -57,7 +59,8 @@ void main() {
     expect(find.byTooltip('Remove column'), findsWidgets);
   });
 
-  testWidgets('view JSON action contains current template schema', (tester) async {
+  testWidgets('view JSON action contains current template schema',
+      (tester) async {
     await pumpDesktop(tester);
 
     await tester.tap(find.text('Dynamic {{field}}'));
