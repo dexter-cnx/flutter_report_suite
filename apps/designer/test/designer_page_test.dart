@@ -39,7 +39,7 @@ void main() {
     expect(find.byType(CanvasRuler), findsNWidgets(2));
   });
 
-  testWidgets('uses compact layout below 1280 and preserves safe area',
+  testWidgets('medium layout collapses Elements and preserves safe area',
       (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
@@ -49,10 +49,16 @@ void main() {
     await tester.pumpWidget(buildSubject());
 
     expect(find.byType(SafeArea), findsOneWidget);
-    expect(find.byType(DesignerAppShell), findsNothing);
+    expect(find.byType(DesignerAppShell), findsOneWidget);
     expect(find.byType(CanvasViewport), findsOneWidget);
-    expect(find.text('Elements'), findsOneWidget);
+    expect(find.text('Elements'), findsNothing);
     expect(find.text('Inspector'), findsOneWidget);
+    expect(find.byTooltip('Toggle Elements'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Toggle Elements'));
+    await tester.pump();
+
+    expect(find.text('Elements'), findsOneWidget);
   });
 
   testWidgets('desktop shell applies the normalized panel dimensions',
