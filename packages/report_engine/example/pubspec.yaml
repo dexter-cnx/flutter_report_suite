@@ -1,6 +1,5 @@
-
-name: example
-description: Example for flutter_offline_report package
+name: report_engine_example
+description: Example app for the report_engine package.
 publish_to: none
 version: 1.0.0
 
@@ -10,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_offline_report:
+  report_engine:
     path: ../
   printing: ^5.12.0
 
@@ -18,4 +17,3 @@ flutter:
   uses-material-design: true
   assets:
     - assets/templates/
-

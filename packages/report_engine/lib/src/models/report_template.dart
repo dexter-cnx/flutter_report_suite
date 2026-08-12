@@ -1,58 +1,126 @@
+enum ReportPaperType { thermal, a4, pdf, custom }
 
-import 'dart:convert';
+enum ReportElementType { text, dynamicText, line, barcode, qrcode, table, image }
 
 class PaperConfig {
-  final String type; // thermal, a4, pdf, custom
+  const PaperConfig({
+    required this.type,
+    required this.widthMm,
+    this.heightMm,
+    this.autoHeight = false,
+    this.marginMm = 3,
+  });
+
+  final String type;
   final double widthMm;
   final double? heightMm;
   final bool autoHeight;
   final double marginMm;
 
-  PaperConfig({required this.type, required this.widthMm, this.heightMm, this.autoHeight = false, this.marginMm = 3});
+  factory PaperConfig.fromJson(Map<String, dynamic> json) => PaperConfig(
+        type: json['type']?.toString() ?? 'a4',
+        widthMm: _asDouble(json['widthMm'], fallback: 80),
+        heightMm: json['heightMm'] == null ? null : _asDouble(json['heightMm']),
+        autoHeight: json['autoHeight'] == true,
+        marginMm: _asDouble(json['marginMm'], fallback: 3),
+      );
 
-  factory PaperConfig.fromJson(Map<String, dynamic> json) {
-    return PaperConfig(
-      type: json['type'] ?? 'a4',
-      widthMm: (json['widthMm'] ?? 80).toDouble(),
-      heightMm: json['heightMm']?.toDouble(),
-      autoHeight: json['autoHeight'] ?? false,
-      marginMm: (json['marginMm'] ?? 3).toDouble(),
-    );
-  }
   Map<String, dynamic> toJson() => {
-    'type': type, 'widthMm': widthMm, 'heightMm': heightMm, 'autoHeight': autoHeight, 'marginMm': marginMm
-  };
+        'type': type,
+        'widthMm': widthMm,
+        if (heightMm != null) 'heightMm': heightMm,
+        'autoHeight': autoHeight,
+        'marginMm': marginMm,
+      };
 }
 
 class ReportElement {
+  const ReportElement({
+    required this.id,
+    required this.type,
+    this.key,
+    required this.x,
+    required this.y,
+    required this.w,
+    required this.h,
+    this.style = const {},
+    this.columns = const [],
+  });
+
   final String id;
-  final String type; // text, dynamic_text, line, barcode, qrcode, table, image
-  final String? key; // e.g. shop.name or {{orderId}}
-  final double x, y, w, h;
+  final String type;
+  final String? key;
+  final double x;
+  final double y;
+  final double w;
+  final double h;
   final Map<String, dynamic> style;
-  final List<dynamic>? columns; // for table
+  final List<Map<String, dynamic>> columns;
 
-  ReportElement({required this.id, required this.type, this.key, required this.x, required this.y, required this.w, required this.h, this.style = const {}, this.columns});
+  factory ReportElement.fromJson(Map<String, dynamic> json) => ReportElement(
+        id: json['id']?.toString() ?? '',
+        type: json['type']?.toString() ?? 'text',
+        key: json['key']?.toString(),
+        x: _asDouble(json['x']),
+        y: _asDouble(json['y']),
+        w: _asDouble(json['w']),
+        h: _asDouble(json['h']),
+        style: Map<String, dynamic>.from(json['style'] as Map? ?? const {}),
+        columns: (json['columns'] as List? ?? const [])
+            .whereType<Map>()
+            .map((column) => Map<String, dynamic>.from(column))
+            .toList(growable: false),
+      );
 
-  factory ReportElement.fromJson(Map<String, dynamic> j) => ReportElement(
-    id: j['id'], type: j['type'], key: j['key'],
-    x: (j['x'] as num).toDouble(), y: (j['y'] as num).toDouble(),
-    w: (j['w'] as num).toDouble(), h: (j['h'] as num).toDouble(),
-    style: j['style'] ?? {}, columns: j['columns']
-  );
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type,
+        if (key != null) 'key': key,
+        'x': x,
+        'y': y,
+        'w': w,
+        'h': h,
+        'style': style,
+        if (columns.isNotEmpty) 'columns': columns,
+      };
 }
 
 class ReportTemplate {
+  const ReportTemplate({
+    required this.id,
+    required this.version,
+    required this.paper,
+    required this.elements,
+  });
+
   final String id;
   final int version;
   final PaperConfig paper;
   final List<ReportElement> elements;
 
-  ReportTemplate({required this.id, required this.version, required this.paper, required this.elements});
+  factory ReportTemplate.fromJson(Map<String, dynamic> json) => ReportTemplate(
+        id: json['id']?.toString() ?? 'template',
+        version: (json['version'] as num?)?.toInt() ?? 1,
+        paper: PaperConfig.fromJson(
+          Map<String, dynamic>.from(json['paper'] as Map? ?? const {}),
+        ),
+        elements: (json['elements'] as List? ?? const [])
+            .whereType<Map>()
+            .map((element) => ReportElement.fromJson(
+                  Map<String, dynamic>.from(element),
+                ))
+            .toList(growable: false),
+      );
 
-  factory ReportTemplate.fromJson(Map<String, dynamic> j) => ReportTemplate(
-    id: j['id'], version: j['version'] ?? 1,
-    paper: PaperConfig.fromJson(j['paper']),
-    elements: (j['elements'] as List).map((e) => ReportElement.fromJson(e)).toList()
-  );
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'version': version,
+        'paper': paper.toJson(),
+        'elements': elements.map((element) => element.toJson()).toList(),
+      };
+}
+
+double _asDouble(dynamic value, {double fallback = 0}) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? fallback;
 }
