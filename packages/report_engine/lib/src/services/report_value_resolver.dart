@@ -20,6 +20,12 @@ class ReportValueResolver {
         current = current[segment];
         continue;
       }
+      if (current is List) {
+        final index = int.tryParse(segment);
+        if (index == null || index < 0 || index >= current.length) return '';
+        current = current[index];
+        continue;
+      }
       return '';
     }
     return current ?? '';
