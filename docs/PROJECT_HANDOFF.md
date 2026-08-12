@@ -45,7 +45,11 @@ Before changing code:
 
 # PRE-FLIGHT — Repository Audit
 
-Before Phase 1:
+**Status: ✅ COMPLETED — 2026-08-12**
+
+The baseline repository audit is complete. Repository structure, branch/working state, root configuration, `packages/report_engine`, `apps/designer`, existing tests, `.github/workflows`, and Designer platform folders were reviewed before Phase 1 work. Existing compatibility issues found during the baseline were handled separately from roadmap regressions.
+
+Completed audit scope:
 
 - inspect repository tree
 - check current branch and working tree
@@ -56,7 +60,7 @@ Before Phase 1:
 - inspect `.github/workflows`
 - inspect platform folders
 
-Run the existing baseline where applicable:
+Baseline commands were run where applicable:
 
 ```bash
 flutter pub get
@@ -64,9 +68,9 @@ flutter analyze
 flutter test
 ```
 
-Record existing failures separately from regressions introduced by roadmap work.
+Existing failures were recorded separately from regressions introduced by roadmap work.
 
-Do not modify code until the audit is complete.
+PRE-FLIGHT is complete; Phase 1 work may proceed.
 
 ---
 
@@ -775,4 +779,4 @@ In those cases, complete everything else possible and record the blocker explici
 
 ## Next Action
 
-Start with **PRE-FLIGHT — Repository Audit**, then continue to **Phase 1 / Task 1**.
+PRE-FLIGHT is complete. Continue with **Phase 1 / Task 1 — Verify and preserve runnable Designer platforms**.
