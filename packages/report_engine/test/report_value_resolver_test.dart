@@ -73,7 +73,8 @@ void main() {
     );
   });
 
-  test('resolveText replaces missing and null placeholders with empty text', () {
+  test('resolveText replaces missing and null placeholders with empty text',
+      () {
     expect(
       resolver.resolveText('note={{note}} / missing={{shop.missing}}', data),
       'note= / missing=',

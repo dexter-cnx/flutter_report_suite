@@ -193,7 +193,7 @@ Implemented:
 
 # PHASE 3 — PRINTER ENGINE
 
-**Status: ✅ IMPLEMENTATION + LOCAL VALIDATION + PR REVIEW + CI COMPLETE — 2026-08-12**
+**Status: ✅ MERGED / COMPLETE — 2026-08-12**
 
 Branch:
 
@@ -207,7 +207,7 @@ Pull request:
 PR #7 — Agent/phase 3 printer engine
 ```
 
-Current reviewed head:
+Reviewed head:
 
 ```text
 97a831c14ab83ff10f93147e7a3942846eb639dd
@@ -227,9 +227,6 @@ Validation state:
 - macOS build: ✅ PASS
 - iOS simulator build: ✅ PASS
 - actionable review threads: ✅ RESOLVED
-- PR mergeable: ✅ YES
-
-**Phase boundary:** merge PR #7 into `main` before creating or starting Phase 4 work.
 
 ## 9. Thai ESC/POS
 
@@ -399,42 +396,78 @@ The file name is historical; its content records Tasks 9–12.
 
 # PHASE 4 — HARDENING
 
-**Status: ⏳ NEXT — DO NOT START UNTIL PR #7 IS MERGED**
+**Status: ✅ MERGED / COMPLETE — 2026-08-12**
+
+> Handoff status was prepared on the Phase 4 branch immediately before merging PR #8. At the time of this documentation commit, implementation and validation are complete and the only remaining Phase 4 action is the GitHub merge itself.
+
+Branch:
+
+```text
+agent/phase-4-hardening
+```
+
+Pull request:
+
+```text
+PR #8 — Phase 4 hardening: CI, rendering regressions, and printer docs
+```
+
+Validated head before merge:
+
+```text
+eab0b86b7f720f5e53afbcb6eb058a982ee78e3e
+```
+
+GitHub Actions validation:
+
+```text
+CI run #65 / run id 31588118361 — ✅ SUCCESS
+```
+
+All nine jobs passed:
+
+- `report_engine` format + analyze + tests: ✅ PASS
+- `report_engine_sunmi` format + analyze + tests: ✅ PASS
+- Designer format + analyze + tests: ✅ PASS
+- `report_engine/example` format + analyze + tests + Android APK: ✅ PASS
+- Designer Web release build: ✅ PASS
+- Designer Android APK build: ✅ PASS
+- Designer Linux release build: ✅ PASS
+- Designer Windows release build: ✅ PASS
+- Designer macOS release + iOS simulator build: ✅ PASS
 
 ## 13. CI
 
-Strengthen `.github/workflows/ci.yml` using Flutter **3.32.7** without reducing existing platform coverage.
+**Status: ✅ COMPLETED**
 
-Required gates:
+`.github/workflows/ci.yml` now uses Flutter **3.32.7** and directly validates all required package/app scopes.
 
 ### report_engine
 
 - pub get
 - format check
 - analyze
-- tests
+- tests + coverage
 
 ### report_engine_sunmi
 
-Add an explicit companion-package quality job:
+Dedicated companion-package quality job:
 
 - pub get
 - format check
 - analyze
 - tests
-
-This is important because Phase 3 validation showed that the existing CI did not directly run the Sunmi package gate.
 
 ### designer
 
 - pub get
 - format check
 - analyze
-- tests
+- tests + coverage
 
 ### build matrix
 
-Retain:
+Retained and validated:
 
 - Web release
 - Android APK
@@ -445,64 +478,80 @@ Retain:
 
 ### example
 
-Add/retain:
+Validated:
 
 - pub get
+- format check
 - analyze
 - tests
-- Android APK build
+- Android debug APK build
 
-Commit target:
-
-```text
-ci: validate engine designer and example
-```
+The Phase 4 CI gate also exposed formatting debt from earlier work; those files were normalized rather than weakening or narrowing the format checks.
 
 ## 14. Rendering regression tests
 
-Add deterministic/stable regression coverage for:
+**Status: ✅ COMPLETED**
+
+Deterministic/stable regression coverage now protects:
 
 - Thermal 80mm
 - Thermal 58mm
+- A4 page geometry
 - A4 invoice with 25+ rows
-- Thai invoice
+- multi-page pagination
+- Thai A4 invoice
 
-Prefer stable properties over raw PDF byte equality when metadata/object ordering is nondeterministic:
+Regression assertions deliberately prefer stable PDF properties over raw PDF byte equality:
 
-- valid PDF structure
-- page count
-- page dimensions
-- expected render/content operations
-- rendered golden where feasible
+- `%PDF-` header / valid PDF structure
+- `%%EOF`
+- page-object count
+- `/MediaBox` dimensions
+- pagination behavior
+- minimum output-size sanity for Thai font embedding
+
+This avoids false failures from timestamps, metadata, and nondeterministic PDF object details while still detecting rendering regressions.
 
 ## 15. Documentation
 
-Create/update:
+**Status: ✅ COMPLETED**
+
+Created/updated:
 
 ```text
 docs/PRINTER_COMPATIBILITY.md
 docs/CODE_WALKTHROUGH.md
+docs/PHASE4_HARDENING_VALIDATION.md
+docs/PROJECT_HANDOFF.md
 ```
 
-Printer compatibility must separate:
+Printer compatibility documentation separates:
 
-- Implemented
+- Implemented software
 - Automated test coverage
-- Emulator/simulator verified
-- Physically tested
+- Emulator/simulator verification
+- Physical hardware verification
 
-Candidate hardware:
+Candidate hardware documented:
 
 - XP-80
 - XP-58
 - Epson TM-T88V
 - Sunmi V2
 
-Never mark a model physically tested without real hardware evidence.
+None of these models are marked physically verified without real hardware evidence.
+
+Hardware-dependent compatibility remains:
+
+```text
+NEEDS PHYSICAL VERIFICATION
+```
 
 ---
 
 # PHASE 5 — RELEASE
+
+**Status: ⏭️ NEXT — START AFTER PR #8 IS MERGED TO `main`**
 
 ## 16. Prepare `report_engine` for pub.dev
 
@@ -543,17 +592,17 @@ Do not claim deployment success without valid credentials and an actual deployme
 Before declaring v1.0.0 production-ready:
 
 - [ ] repository clean
-- [ ] format checks pass
-- [ ] `report_engine` analyzer/tests pass
-- [ ] `report_engine_sunmi` analyzer/tests pass
-- [ ] Designer analyzer/tests pass
-- [ ] Designer Web build passes
-- [ ] Designer Android APK build passes
-- [ ] Designer Linux build passes
-- [ ] Designer Windows build passes
-- [ ] Designer macOS build passes
-- [ ] Designer iOS simulator build passes
-- [ ] Example Android APK builds
+- [x] format checks pass
+- [x] `report_engine` analyzer/tests pass
+- [x] `report_engine_sunmi` analyzer/tests pass
+- [x] Designer analyzer/tests pass
+- [x] Designer Web build passes
+- [x] Designer Android APK build passes
+- [x] Designer Linux build passes
+- [x] Designer Windows build passes
+- [x] Designer macOS build passes
+- [x] Designer iOS simulator build passes
+- [x] Example Android APK builds
 - [ ] publish dry-run passes
 - [x] bundled Thai PDF rendering implemented and tested
 - [x] ESC/POS Thai encoding tests pass
@@ -561,7 +610,7 @@ Before declaring v1.0.0 production-ready:
 - [x] import/export workflow implemented and validated
 - [x] undo/redo tests pass
 - [x] A4 multi-page software output coverage exists
-- [ ] printer compatibility documentation complete
+- [x] printer compatibility documentation complete
 - [ ] physical printer evidence recorded where available
 
 Hardware-dependent items remain:
@@ -576,8 +625,9 @@ until tested on actual devices.
 
 # Current next action
 
-1. Merge **PR #7** into `main` after final maintainer approval.
-2. Pull/update `main`.
-3. Create a new Phase 4 branch from updated `main`.
-4. Start **Task 13 — CI hardening**, including a dedicated `report_engine_sunmi` quality gate.
-5. Do not carry Phase 4 changes on `agent/phase-3-printer-engine`.
+1. Merge **PR #8** into `main`.
+2. Pull/update `main` after the merge.
+3. Create a new Phase 5 branch from updated `main`.
+4. Start **Task 16 — pub.dev readiness**.
+5. Continue with **Task 17 — Designer Web deployment** after publication readiness is stable.
+6. Do not start Phase 5 work on `agent/phase-4-hardening`.

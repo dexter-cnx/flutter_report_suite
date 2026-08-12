@@ -22,7 +22,8 @@ void main() {
   };
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('report-engine-storage-test-');
+    tempDir =
+        await Directory.systemTemp.createTemp('report-engine-storage-test-');
     Hive.init(tempDir.path);
     storage = TemplateStorageService(boxName: 'templates_test');
   });

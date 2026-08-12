@@ -18,61 +18,149 @@ env:
   FLUTTER_VERSION: '3.32.7'
 
 jobs:
-  report-engine:
-    name: report_engine • analyze + test
+  report-engine-quality:
+    name: report_engine • format + analyze + test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
       run:
         working-directory: packages/report_engine
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-
       - name: Install dependencies
         run: flutter pub get
-
+      - name: Check formatting
+        id: format
+        shell: bash
+        run: |
+          dart format lib test
+          git diff --exit-code -- lib test
+      - name: Upload formatted engine files
+        if: failure() && steps.format.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-report-engine
+          path: |
+            packages/report_engine/lib
+            packages/report_engine/test
+          if-no-files-found: error
       - name: Analyze
         run: flutter analyze
-
       - name: Run tests
         run: flutter test --coverage --reporter expanded
 
+  report-engine-sunmi-quality:
+    name: report_engine_sunmi • format + analyze + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: packages/report_engine_sunmi
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Check formatting
+        id: format
+        shell: bash
+        run: |
+          dart format lib test
+          git diff --exit-code -- lib test
+      - name: Upload formatted Sunmi files
+        if: failure() && steps.format.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-report-engine-sunmi
+          path: |
+            packages/report_engine_sunmi/lib
+            packages/report_engine_sunmi/test
+          if-no-files-found: error
+      - name: Analyze
+        run: flutter analyze
+      - name: Run tests
+        run: flutter test --reporter expanded
+
   designer-quality:
-    name: designer • analyze + test
+    name: designer • format + analyze + test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-
       - name: Install dependencies
         run: flutter pub get
-
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
       - name: Analyze
         run: flutter analyze
-
       - name: Run tests
         run: flutter test --coverage --reporter expanded
+
+  example-quality:
+    name: report_engine example • format + analyze + test + apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: packages/report_engine/example
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyze
+        run: flutter analyze
+      - name: Run tests
+        run: flutter test --reporter expanded
+      - name: Build Android APK
+        id: example_apk
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build apk --debug 2>&1 | tee /tmp/example-apk.log
+      - name: Upload example APK failure log
+        if: failure() && steps.example_apk.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-apk-build-log
+          path: /tmp/example-apk.log
+          if-no-files-found: error
 
   web-build:
     name: build • web
@@ -81,7 +169,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,7 +190,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -130,7 +216,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -154,7 +239,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -176,7 +260,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4

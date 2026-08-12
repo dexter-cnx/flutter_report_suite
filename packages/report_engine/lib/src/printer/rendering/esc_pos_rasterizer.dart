@@ -85,7 +85,8 @@ class FlutterEscPosRasterizer implements EscPosRasterizer {
     );
     painter.dispose();
 
-    return _pictureToGsV0(recorder.endRecording(), width: width, height: height);
+    return _pictureToGsV0(recorder.endRecording(),
+        width: width, height: height);
   }
 
   @override
@@ -133,7 +134,8 @@ class FlutterEscPosRasterizer implements EscPosRasterizer {
       painters[index].dispose();
     }
 
-    return _pictureToGsV0(recorder.endRecording(), width: width, height: height);
+    return _pictureToGsV0(recorder.endRecording(),
+        width: width, height: height);
   }
 
   void _validate(int scale) {
@@ -175,7 +177,8 @@ class FlutterEscPosRasterizer implements EscPosRasterizer {
     );
   }
 
-  void _paintBackground(Canvas canvas, {required int width, required int height}) {
+  void _paintBackground(Canvas canvas,
+      {required int width, required int height}) {
     canvas.drawRect(
       Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
       Paint()..color = Colors.white,

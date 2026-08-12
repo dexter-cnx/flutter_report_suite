@@ -24,8 +24,7 @@ class SunmiPrinterAdapter implements EscPosTransport, PrinterDiscoverySource {
     SunmiHardwareProfile hardwareProfile = const SunmiHardwareProfile(),
   }) {
     final resolvedBridge = bridge ?? PluginSunmiPrinterBridge();
-    if (hardwareProfile.supportsCutter &&
-        hardwareProfile.supportsCashDrawer) {
+    if (hardwareProfile.supportsCutter && hardwareProfile.supportsCashDrawer) {
       return _SunmiFullCapabilityAdapter(resolvedBridge, hardwareProfile);
     }
     if (hardwareProfile.supportsCutter) {

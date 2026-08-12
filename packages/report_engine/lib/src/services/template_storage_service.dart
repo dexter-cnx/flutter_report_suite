@@ -100,10 +100,12 @@ class TemplateStorageService {
       throw const FormatException('Report template version must be numeric.');
     }
     if (template['paper'] is! Map) {
-      throw const FormatException('Report template must contain a paper object.');
+      throw const FormatException(
+          'Report template must contain a paper object.');
     }
     if (template['elements'] is! List) {
-      throw const FormatException('Report template must contain an elements list.');
+      throw const FormatException(
+          'Report template must contain an elements list.');
     }
     return template;
   }

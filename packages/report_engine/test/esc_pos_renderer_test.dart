@@ -26,7 +26,8 @@ void main() {
     });
 
     test('uses raster strategy without entering code-page encoder', () async {
-      final rasterizer = _FakeRasterizer(const <int>[0x1D, 0x76, 0x30, 0x00, 7]);
+      final rasterizer =
+          _FakeRasterizer(const <int>[0x1D, 0x76, 0x30, 0x00, 7]);
       final renderer = EscPosRenderer(rasterizer: rasterizer);
 
       final bytes = await renderer.renderTemplate(
@@ -59,8 +60,7 @@ void main() {
         encodingConfig: config,
       );
 
-      const expectedLine =
-          'Long item name that must stay in   x2        120';
+      const expectedLine = 'Long item name that must stay in   x2        120';
       expect(
         _containsSequence(
           bytes,
@@ -71,7 +71,8 @@ void main() {
     });
 
     test('quick receipt uses measured raster columns', () async {
-      final rasterizer = _FakeRasterizer(const <int>[0x1D, 0x76, 0x30, 0x00, 7]);
+      final rasterizer =
+          _FakeRasterizer(const <int>[0x1D, 0x76, 0x30, 0x00, 7]);
       final renderer = EscPosRenderer(rasterizer: rasterizer);
 
       await renderer.renderQuickReceipt(
@@ -86,7 +87,8 @@ void main() {
       );
 
       expect(rasterizer.columnCalls, 1);
-      expect(rasterizer.lastColumns!.map((column) => column.flex), <int>[8, 2, 2]);
+      expect(
+          rasterizer.lastColumns!.map((column) => column.flex), <int>[8, 2, 2]);
       expect(rasterizer.lastColumns![1].align, PosAlign.center);
       expect(rasterizer.lastColumns![2].align, PosAlign.right);
     });
