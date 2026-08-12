@@ -1,49 +1,164 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:report_engine/report_engine.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('renders a basic PDF document', () async {
-    final bytes = await PdfRenderService().render(
-      {
-        'id': 'pdf-test',
-        'paper': {
-          'type': 'pdf',
-          'widthMm': 80,
-          'heightMm': 120,
-          'autoHeight': false,
-          'marginMm': 3,
-        },
-        'elements': [
-          {
-            'id': 'title',
-            'type': 'dynamic_text',
-            'key': '{{shop.name}}',
-            'x': 0,
-            'y': 0,
-            'w': 60,
-            'h': 8,
-            'style': {'fontSize': 12, 'bold': true},
-          },
-          {
-            'id': 'literal',
-            'type': 'text',
-            'key': 'Thank you',
-            'x': 0,
-            'y': 10,
-            'w': 60,
-            'h': 8,
-            'style': {'fontSize': 10},
-          },
-        ],
+  Map<String, dynamic> documentTemplate({
+    required String type,
+    required double widthMm,
+    double? heightMm,
+    List<Map<String, dynamic>>? elements,
+  }) {
+    return {
+      'id': 'pdf-test-$type-$widthMm',
+      'paper': {
+        'type': type,
+        'widthMm': widthMm,
+        'heightMm': heightMm,
+        'autoHeight': type == 'thermal',
+        'marginMm': 3,
       },
+      'elements': elements ??
+          [
+            {
+              'id': 'title',
+              'type': 'dynamic_text',
+              'key': '{{shop.name}}',
+              'x': 0,
+              'y': 0,
+              'w': widthMm - 6,
+              'h': 8,
+              'style': {'fontSize': 12, 'bold': true},
+            },
+          ],
+    };
+  }
+
+  void expectValidPdf(List<int> bytes) {
+    expect(bytes.length, greaterThan(100));
+    expect(bytes.take(5), orderedEquals(utf8.encode('%PDF-')));
+    final tail = latin1.decode(bytes.sublist(bytes.length - 32), allowInvalid: true);
+    expect(tail, contains('%%EOF'));
+  }
+
+  int pageObjectCount(List<int> bytes) {
+    final source = latin1.decode(bytes, allowInvalid: true);
+    return RegExp(r'/Type\s*/Page\b').allMatches(source).length;
+  }
+
+  test('renders Thermal 80mm as a structurally valid PDF', () async {
+    final bytes = await PdfRenderService().render(
+      documentTemplate(type: 'thermal', widthMm: 80),
       {
         'shop': {'name': 'Dexter Coffee'},
       },
     );
 
-    expect(bytes.length, greaterThan(100));
-    expect(bytes.take(4), orderedEquals([0x25, 0x50, 0x44, 0x46]));
+    expectValidPdf(bytes);
+    expect(pageObjectCount(bytes), 1);
+  });
+
+  test('renders Thermal 58mm as a structurally valid PDF', () async {
+    final bytes = await PdfRenderService().render(
+      documentTemplate(type: 'thermal', widthMm: 58),
+      {
+        'shop': {'name': 'Dexter Coffee'},
+      },
+    );
+
+    expectValidPdf(bytes);
+    expect(pageObjectCount(bytes), 1);
+  });
+
+  test('renders A4 as a structurally valid PDF', () async {
+    final bytes = await PdfRenderService().render(
+      documentTemplate(type: 'a4', widthMm: 210, heightMm: 297),
+      {
+        'shop': {'name': 'Dexter Coffee'},
+      },
+    );
+
+    expectValidPdf(bytes);
+    expect(pageObjectCount(bytes), greaterThanOrEqualTo(1));
+  });
+
+  test('paginates a large A4 table', () async {
+    final items = List<Map<String, dynamic>>.generate(
+      120,
+      (index) => {
+        'no': index + 1,
+        'name': 'Item ${index + 1}',
+        'qty': (index % 4) + 1,
+        'price': 25 + index,
+      },
+    );
+    final bytes = await PdfRenderService().render(
+      documentTemplate(
+        type: 'a4',
+        widthMm: 210,
+        heightMm: 297,
+        elements: [
+          {
+            'id': 'items',
+            'type': 'table',
+            'key': '{{items}}',
+            'x': 0,
+            'y': 0,
+            'w': 180,
+            'h': 240,
+            'style': {'fontSize': 9},
+            'columns': [
+              {'key': 'no', 'label': 'No.'},
+              {'key': 'name', 'label': 'Item'},
+              {'key': 'qty', 'label': 'Qty'},
+              {'key': 'price', 'label': 'Price'},
+            ],
+          },
+        ],
+      ),
+      {'items': items},
+    );
+
+    expectValidPdf(bytes);
+    expect(pageObjectCount(bytes), greaterThan(1));
+  });
+
+  test('renders empty data without corrupting the PDF', () async {
+    final bytes = await PdfRenderService().render(
+      documentTemplate(type: 'pdf', widthMm: 80, heightMm: 120),
+      const {},
+    );
+
+    expectValidPdf(bytes);
+  });
+
+  test('renders missing optional values without corrupting the PDF', () async {
+    final bytes = await PdfRenderService().render(
+      documentTemplate(
+        type: 'pdf',
+        widthMm: 80,
+        heightMm: 120,
+        elements: [
+          {
+            'id': 'optional',
+            'type': 'dynamic_text',
+            'key': '{{customer.optionalNote}}',
+            'x': 0,
+            'y': 0,
+            'w': 60,
+            'h': 8,
+            'style': {'fontSize': 10},
+          },
+        ],
+      ),
+      const {
+        'customer': {'name': 'Dexter'},
+      },
+    );
+
+    expectValidPdf(bytes);
   });
 }
