@@ -18,28 +18,87 @@ class TemplateStorageService {
 
   Future<Map<String, dynamic>> loadFromAssets(String assetPath) async {
     final source = await rootBundle.loadString(assetPath);
-    return _decodeTemplate(source);
+    return decodeTemplate(source);
   }
 
   Future<void> saveTemplate(String id, Map<String, dynamic> template) async {
+    final normalizedId = _normalizeId(id);
     final box = await _ensureBox();
-    await box.put(id, jsonEncode(template));
+    await box.put(normalizedId, jsonEncode(template));
   }
 
   Future<Map<String, dynamic>?> getTemplate(String id) async {
     final box = await _ensureBox();
-    final raw = box.get(id);
-    return raw == null ? null : _decodeTemplate(raw);
+    final raw = box.get(_normalizeId(id));
+    return raw == null ? null : decodeTemplate(raw);
   }
 
   Future<List<String>> getAllTemplateIds() async {
     final box = await _ensureBox();
-    return box.keys.map((key) => key.toString()).toList(growable: false);
+    final ids = box.keys.map((key) => key.toString()).toList(growable: false);
+    ids.sort();
+    return ids;
+  }
+
+  Future<bool> containsTemplate(String id) async {
+    final box = await _ensureBox();
+    return box.containsKey(_normalizeId(id));
+  }
+
+  Future<void> renameTemplate(String fromId, String toId) async {
+    final sourceId = _normalizeId(fromId);
+    final targetId = _normalizeId(toId);
+    if (sourceId == targetId) return;
+
+    final box = await _ensureBox();
+    final raw = box.get(sourceId);
+    if (raw == null) {
+      throw StateError('Template "$sourceId" does not exist.');
+    }
+    if (box.containsKey(targetId)) {
+      throw StateError('Template "$targetId" already exists.');
+    }
+
+    await box.put(targetId, raw);
+    await box.delete(sourceId);
+  }
+
+  Future<void> duplicateTemplate(String sourceId, String targetId) async {
+    final source = _normalizeId(sourceId);
+    final target = _normalizeId(targetId);
+    final box = await _ensureBox();
+    final raw = box.get(source);
+    if (raw == null) {
+      throw StateError('Template "$source" does not exist.');
+    }
+    if (box.containsKey(target)) {
+      throw StateError('Template "$target" already exists.');
+    }
+    await box.put(target, raw);
   }
 
   Future<void> deleteTemplate(String id) async {
     final box = await _ensureBox();
-    await box.delete(id);
+    await box.delete(_normalizeId(id));
+  }
+
+  Map<String, dynamic> decodeTemplate(String raw) {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) {
+      throw const FormatException('Report template must be a JSON object.');
+    }
+    final template = Map<String, dynamic>.from(decoded);
+    final version = template['version'];
+    if (version != null && version is! num) {
+      throw const FormatException('Report template version must be numeric.');
+    }
+    if (template['paper'] is! Map) {
+      throw const FormatException('Report template must contain a paper object.');
+    }
+    if (template['elements'] is! List) {
+      throw const FormatException('Report template must contain an elements list.');
+    }
+    return template;
   }
 
   Future<Box<String>> _ensureBox() async {
@@ -48,11 +107,11 @@ class TemplateStorageService {
     return _box!;
   }
 
-  Map<String, dynamic> _decodeTemplate(String raw) {
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) {
-      throw const FormatException('Report template must be a JSON object.');
+  String _normalizeId(String id) {
+    final normalized = id.trim();
+    if (normalized.isEmpty) {
+      throw const FormatException('Template id cannot be empty.');
     }
-    return Map<String, dynamic>.from(decoded);
+    return normalized;
   }
 }
