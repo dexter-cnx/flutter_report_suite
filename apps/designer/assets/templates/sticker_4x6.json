@@ -1,0 +1,43 @@
+{
+  "id": "sticker_4x6",
+  "version": 1,
+  "paper": {
+    "type": "pdf",
+    "widthMm": 101.6,
+    "heightMm": 152.4,
+    "autoHeight": false,
+    "marginMm": 5
+  },
+  "elements": [
+    {
+      "id": "title",
+      "type": "dynamic_text",
+      "key": "{{shop.name}}",
+      "x": 5,
+      "y": 5,
+      "w": 90,
+      "h": 12,
+      "style": {"fontSize": 18, "bold": true, "align": "center"}
+    },
+    {
+      "id": "order",
+      "type": "dynamic_text",
+      "key": "Order {{orderId}}",
+      "x": 5,
+      "y": 25,
+      "w": 90,
+      "h": 10,
+      "style": {"fontSize": 12, "align": "center"}
+    },
+    {
+      "id": "qr",
+      "type": "qrcode",
+      "key": "{{orderId}}",
+      "x": 30,
+      "y": 45,
+      "w": 40,
+      "h": 40,
+      "style": {"align": "center"}
+    }
+  ]
+}
