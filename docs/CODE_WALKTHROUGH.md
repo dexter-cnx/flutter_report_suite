@@ -1,6 +1,21 @@
 # Code Walkthrough
 
-This document explains the current `flutter_report_suite` architecture after Phase 3, including template authoring, PDF rendering, Thai ESC/POS, printer discovery, transport adapters, Sunmi integration, hardware capabilities, tests, and CI boundaries.
+This document explains the current `flutter_report_suite` architecture after the reviewed Phase 3 printer-engine work.
+
+It covers:
+
+- template contract and Designer relationship
+- PDF rendering
+- Thai ESC/POS encoding
+- raster fallback
+- quick-receipt layout
+- transport abstraction
+- unified discovery
+- Sunmi companion package
+- optional hardware capabilities
+- validation and debugging boundaries
+
+---
 
 ## 1. Repository map
 
@@ -12,12 +27,6 @@ flutter_report_suite/
 │       ├── android/ ios/ web/ macos/ windows/ linux/
 │       ├── assets/templates/
 │       ├── lib/
-│       │   ├── main.dart
-│       │   ├── controllers/
-│       │   ├── models/
-│       │   ├── pages/
-│       │   ├── services/
-│       │   └── widgets/
 │       └── test/
 ├── packages/
 │   ├── report_engine/
@@ -27,11 +36,8 @@ flutter_report_suite/
 │   │   ├── lib/
 │   │   │   ├── report_engine.dart
 │   │   │   └── src/
-│   │   │       ├── models/report_template.dart
+│   │   │       ├── models/
 │   │   │       ├── services/
-│   │   │       │   ├── report_value_resolver.dart
-│   │   │       │   ├── pdf_render_service.dart
-│   │   │       │   └── template_storage_service.dart
 │   │   │       └── printer/
 │   │   │           ├── capabilities/
 │   │   │           ├── discovery/
@@ -49,12 +55,13 @@ flutter_report_suite/
 │       │       └── sunmi_printer_bridge.dart
 │       └── test/
 └── docs/
+    ├── PROJECT_HANDOFF.md
     ├── CODE_WALKTHROUGH.md
     ├── PHASE3_SUNMI_ADAPTER_AUDIT.md
     └── PHASE3_TASK9_11_VALIDATION.md
 ```
 
-The dependency direction is intentional:
+Dependency direction:
 
 ```text
 apps/designer
@@ -64,45 +71,38 @@ report_engine
 report_engine_sunmi
 ```
 
-`report_engine` is the cross-platform core. The Designer consumes it. Android-only Sunmi support lives in a companion package so the core does not acquire an Android-only plugin dependency.
+`report_engine` is the cross-platform core. `report_engine_sunmi` is an optional Android-specific integration package.
 
 ---
 
-## 2. End-to-end architecture
+## 2. Architectural rule
 
-```mermaid
-flowchart LR
-    A[Designer UI] --> B[Template JSON]
-    C[Runtime data] --> D[ReportTemplate + Resolver]
-    B --> D
+The printer stack deliberately separates four concerns:
 
-    D --> E[PdfRenderService]
-    E --> F[PDF bytes]
-    F --> G[Preview / Share / System printer]
-
-    D --> H[EscPosRenderer]
-    H --> I[ESC/POS bytes]
-    I --> J[EscPosTransport]
-    J --> K[BLE printer]
-    J --> L[Sunmi embedded printer]
-
-    M[PrinterDiscoveryService] --> N[UnifiedPrinter]
-    O[System discovery] --> M
-    P[BLE discovery] --> M
-    Q[Sunmi discovery source] --> M
-
-    R[CutterCapability] --> L
-    S[CashDrawerCapability] --> L
-
-    B --> T[TemplateStorageService]
-    T --> D
+```text
+Template + data
+      ↓
+Rendering
+      ↓
+ESC/POS bytes
+      ↓
+Transport
+      ↓
+Physical device
 ```
 
-The important Phase 3 boundary is:
+Optional physical operations live beside transport rather than inside rendering:
+
+```text
+CutterCapability
+CashDrawerCapability
+```
+
+The key rule is:
 
 > Rendering produces bytes. Transport sends bytes. Hardware capabilities perform device-specific operations.
 
-These concerns are intentionally separate.
+`PdfRenderService` never cuts paper or opens a drawer.
 
 ---
 
@@ -114,49 +114,58 @@ Canonical import:
 import 'package:report_engine/report_engine.dart';
 ```
 
-`report_engine.dart` exports the supported application-facing API including:
+The public core API exports:
 
-- report template models
+- `ReportTemplate`
 - `ReportValueResolver`
 - `PdfRenderService`
 - `TemplateStorageService`
 - `FlutterReportPrinter`
 - `EscPosPrinterService`
-- Thai ESC/POS encoding configuration
-- ESC/POS renderer and rasterizer
-- ESC/POS transport contract
+- `EscPosRenderer`
+- `EscPosRasterizer`
+- `EscPosTransport`
+- Thai encoding configuration
 - unified printer discovery
 - hardware capability contracts
 
-The public core API does not expose a Sunmi plugin dependency. Applications that target Sunmi import the companion package separately:
+Sunmi is imported separately:
 
 ```dart
 import 'package:report_engine_sunmi/report_engine_sunmi.dart';
 ```
 
+This prevents an Android-only dependency from leaking into Web/Desktop/iOS consumers of core.
+
 ---
 
-## 4. Template contract
+## 4. Shared template contract
 
-File:
+Primary model:
 
 ```text
 packages/report_engine/lib/src/models/report_template.dart
 ```
 
-The shared contract consists of `PaperConfig`, `ReportElement`, and `ReportTemplate`.
+The shared contract consists of:
+
+```text
+ReportTemplate
+PaperConfig
+ReportElement
+```
 
 Geometry is persisted in physical millimeters:
 
 ```text
 model geometry = millimeters
-screen geometry = millimeters × zoom scale
+Designer screen geometry = millimeters × zoom
 PDF geometry = millimeters → PDF points
 ```
 
-This rule lets Designer zoom without mutating the saved document geometry.
+The same template JSON can drive both PDF and ESC/POS output.
 
-A dynamic element example:
+Example dynamic field:
 
 ```json
 {
@@ -175,8 +184,6 @@ A dynamic element example:
 }
 ```
 
-The same JSON drives PDF and ESC/POS output.
-
 ---
 
 ## 5. Value resolution
@@ -187,7 +194,7 @@ File:
 packages/report_engine/lib/src/services/report_value_resolver.dart
 ```
 
-`ReportValueResolver` supports nested maps, list indexes, and interpolation.
+Examples:
 
 ```dart
 const resolver = ReportValueResolver();
@@ -197,13 +204,21 @@ resolver.resolve('{{items.0.name}}', data);
 resolver.resolveText('Invoice {{invoiceNo}}', data);
 ```
 
-Missing, null, invalid, negative, or out-of-range paths resolve safely rather than crashing the renderer.
+Supported behavior includes:
 
-PDF and ESC/POS both use this resolver so expression semantics stay consistent across output channels.
+- nested maps
+- list indexes
+- interpolation
+- missing values
+- null values
+- invalid indexes
+- numeric and boolean values
+
+PDF and ESC/POS share the same resolver so expression semantics do not drift between output channels.
 
 ---
 
-## 6. PDF rendering and Thai fonts
+## 6. PDF rendering
 
 File:
 
@@ -211,7 +226,7 @@ File:
 packages/report_engine/lib/src/services/pdf_render_service.dart
 ```
 
-Primary API:
+Typical call:
 
 ```dart
 final bytes = await PdfRenderService().render(templateJson, data);
@@ -220,13 +235,13 @@ final bytes = await PdfRenderService().render(templateJson, data);
 The renderer:
 
 1. parses the template
-2. resolves dynamic data
+2. resolves runtime data
 3. loads bundled fonts
-4. converts millimeter geometry to PDF units
-5. builds thermal or paged PDF output
+4. converts millimeters to PDF units
+5. renders thermal or paged documents
 6. returns `Uint8List`
 
-Bundled Thai fonts live under:
+Bundled Thai fonts:
 
 ```text
 packages/report_engine/assets/fonts/
@@ -234,13 +249,11 @@ packages/report_engine/assets/fonts/
 └── NotoSansThai-Bold.ttf
 ```
 
-Package-aware asset paths are used so Thai rendering works when `report_engine` is consumed by another Flutter application.
-
-`PdfRenderService` never performs physical printer operations such as cutting paper or opening a cash drawer.
+Package-aware asset lookup allows the fonts to work when the package is consumed from another Flutter app.
 
 ---
 
-## 7. System printer facade
+## 7. System printing facade
 
 File:
 
@@ -248,47 +261,25 @@ File:
 packages/report_engine/lib/src/printer/printer_service.dart
 ```
 
-`FlutterReportPrinter` is the high-level PDF/system-printing facade:
+`FlutterReportPrinter` is the high-level PDF/system-printer facade.
 
 ```dart
 final printer = FlutterReportPrinter();
-
 final bytes = await printer.generatePdf(
   templateJson: template,
   data: data,
 );
 ```
 
-It also provides preview/share/direct-print/system-printer listing behavior through the `printing` package.
+Other operations cover preview, share, direct system printing, and printer listing through the `printing` package.
 
-This is separate from ESC/POS thermal printing.
+This path is separate from raw ESC/POS thermal printing.
 
 ---
 
-## 8. ESC/POS architecture
+# ESC/POS STACK
 
-Phase 3 splits ESC/POS into four layers:
-
-```text
-Template + data
-      ↓
-EscPosRenderer
-      ↓
-ESC/POS bytes
-      ↓
-EscPosTransport
-      ↓
-physical connection
-```
-
-Additional device operations are separate:
-
-```text
-CutterCapability
-CashDrawerCapability
-```
-
-### Renderer
+## 8. `EscPosRenderer`
 
 File:
 
@@ -296,43 +287,35 @@ File:
 packages/report_engine/lib/src/printer/rendering/esc_pos_renderer.dart
 ```
 
-`EscPosRenderer` owns ESC/POS document rendering. It does not connect to Bluetooth and does not cut paper.
+Responsibilities:
+
+- convert a `ReportTemplate` + data into ESC/POS bytes
+- resolve dynamic fields
+- render text/lines/tables/QR/barcode
+- select code-page or raster Thai strategy
+- render quick receipts
+
+Non-responsibilities:
+
+- Bluetooth connection
+- USB/network connection
+- Sunmi service binding
+- cut
+- cash drawer
 
 Example:
 
 ```dart
-final renderer = EscPosRenderer();
-
-final bytes = await renderer.renderTemplate(
+final bytes = await EscPosRenderer().renderTemplate(
   template: template,
   data: data,
   encodingConfig: const EscPosEncodingConfig.raster(),
 );
 ```
 
-`renderQuickReceipt()` is the convenience path for simple receipts without template JSON.
-
-### Transport
-
-File:
-
-```text
-packages/report_engine/lib/src/printer/transport/esc_pos_transport.dart
-```
-
-Contract:
-
-```dart
-abstract interface class EscPosTransport {
-  Future<void> send(List<int> bytes);
-}
-```
-
-Rendering code therefore does not care whether bytes are sent through BLE, an embedded Sunmi service, network transport, USB, or a future adapter.
-
 ---
 
-## 9. Thai ESC/POS strategies
+## 9. Thai encoding configuration
 
 Files:
 
@@ -343,7 +326,7 @@ packages/report_engine/lib/src/printer/encoding/
 └── esc_pos_text_encoder.dart
 ```
 
-Supported strategies:
+Strategies:
 
 ```dart
 enum ThaiEncoding {
@@ -353,53 +336,90 @@ enum ThaiEncoding {
 }
 ```
 
-### TIS-620
+### Important invariant
 
-Use when the target printer manual confirms a compatible code table.
+Code-page encodings cannot exist without a code-table number.
+
+The reviewed public API intentionally exposes only:
+
+```dart
+EscPosEncodingConfig.tis620(codeTable: 26)
+EscPosEncodingConfig.cp874(codeTable: 30)
+EscPosEncodingConfig.raster()
+```
+
+There is no public generic constructor that allows this invalid state:
+
+```text
+CP874/TIS-620 + codeTable == null
+```
+
+This matters because Dart `assert` statements disappear in release builds. The invariant is therefore enforced structurally by the API instead of only through a debug assertion.
+
+### TIS-620
 
 ```dart
 const encoding = EscPosEncodingConfig.tis620(
-  codeTable: 26,
+  codeTable: printerSpecificTable,
 );
 ```
 
 ### CP874
 
-Use when the printer exposes a Windows-874/CP874-compatible table.
-
 ```dart
 const encoding = EscPosEncodingConfig.cp874(
-  codeTable: 30,
+  codeTable: printerSpecificTable,
 );
 ```
 
-The code-table number is printer-specific and is deliberately supplied by configuration rather than hardcoded globally.
+The table number remains printer-specific because ESC/POS clones do not assign Thai tables consistently.
 
-### Raster fallback
-
-Use when Thai code-page behavior is unknown or unreliable:
+### Raster
 
 ```dart
 const encoding = EscPosEncodingConfig.raster();
 ```
 
-This converts text into a monochrome ESC/POS raster image and avoids printer-side Thai character mapping.
+Raster avoids printer-side Thai character mapping completely.
 
-Required Thai fixtures are covered by tests, including:
+Tests cover:
 
 ```text
 กุ้ง
 น้ำ
 ยอดรวม
-mixed Thai / English
+mixed Thai/English
 Thai numerals
+CP874 punctuation extensions
 ```
-
-Automated byte-level coverage does not prove that a particular physical printer renders the bytes correctly. Physical printer compatibility remains a separate verification step.
 
 ---
 
-## 10. Rasterized Thai text
+## 10. `EscPosTextEncoder`
+
+`EscPosTextEncoder` is pure byte conversion logic with no transport dependency.
+
+For code-page output it emits:
+
+```text
+ESC t n
+encoded payload
+LF
+```
+
+Responsibilities include:
+
+- ASCII pass-through
+- Thai TIS-620 mappings
+- CP874 extension bytes
+- replacement byte for unsupported characters
+- code-table range validation
+
+Raster mode intentionally throws from this encoder because raster rendering belongs to the rasterizer, not the single-byte encoder.
+
+---
+
+## 11. Rasterized Thai
 
 File:
 
@@ -407,29 +427,101 @@ File:
 packages/report_engine/lib/src/printer/rendering/esc_pos_rasterizer.dart
 ```
 
-`FlutterEscPosRasterizer` uses Flutter text rendering with the bundled Noto Sans Thai font, converts the result to RGBA pixels, thresholds it to monochrome, packs bits, and emits ESC/POS `GS v 0` raster bytes.
-
-Conceptually:
+`FlutterEscPosRasterizer` flow:
 
 ```text
-Thai String
+Thai text
    ↓
-TextPainter + Noto Sans Thai
+TextPainter + bundled Noto Sans Thai
    ↓
-Flutter image
+RGBA image
    ↓
-RGBA pixels
+monochrome threshold
    ↓
-monochrome bitmap
+bit packing
    ↓
-GS v 0 ESC/POS bytes
+ESC/POS GS v 0 raster command
 ```
 
-This is the compatibility fallback for printers whose firmware does not reliably provide the required Thai code page.
+This is the fallback for printers with unknown or unreliable Thai code pages.
+
+### Raster columns
+
+Quick receipts need alignment, not just readable Thai text. The rasterizer therefore also supports measured column rendering so item/quantity/price columns retain their semantic widths and alignment.
 
 ---
 
-## 11. Bluetooth ESC/POS transport
+## 12. Quick-receipt 8/2/2 layout
+
+Phase 3 review caught an important regression: concatenating item name, quantity, and price into one string loses the original column layout.
+
+The reviewed implementation preserves:
+
+```text
+item name  = 8 units, left
+quantity   = 2 units, center
+price      = 2 units, right
+```
+
+Legacy path:
+
+```text
+Generator.row(...)
+```
+
+Code-page path:
+
+```text
+fixed-width 8/2/2 equivalent
+```
+
+Raster path:
+
+```text
+measured 8/2/2 column rectangles
+```
+
+Why this matters:
+
+- prices stay right-aligned
+- quantity stays centered
+- long names are constrained to the item column instead of pushing price to an arbitrary printer line boundary
+
+This is covered by regression tests.
+
+---
+
+## 13. ESC/POS transport
+
+Contract:
+
+```text
+packages/report_engine/lib/src/printer/transport/esc_pos_transport.dart
+```
+
+```dart
+abstract interface class EscPosTransport {
+  Future<void> send(List<int> bytes);
+}
+```
+
+Rendering is therefore independent of connection mechanism.
+
+Current implementations include:
+
+- BLE transport in core
+- Sunmi embedded transport in companion package
+
+Future adapters can implement the same interface for:
+
+- network TCP
+- USB
+- Bluetooth Classic
+- other embedded printer SDKs
+
+---
+
+## 14. BLE transport
 
 File:
 
@@ -437,35 +529,59 @@ File:
 packages/report_engine/lib/src/printer/transport/bluetooth_esc_pos_transport.dart
 ```
 
-`BluetoothEscPosTransport` owns BLE-specific behavior:
+Responsibilities:
 
-1. connect to the device
-2. discover services
-3. find a writable characteristic
-4. split the output into bounded chunks
-5. write chunks
-6. disconnect in cleanup
+- connect
+- discover services
+- find writable characteristic
+- chunk writes
+- cleanup/disconnect
 
-This transport uses `flutter_blue_plus`, which is BLE-only. Bluetooth Classic printers are not covered by this adapter and require a different transport/discovery implementation.
+Important limitation:
 
-The legacy `scanPrinters()` API remains for compatibility, but new multi-mechanism discovery should use `PrinterDiscoveryService`.
+> `flutter_blue_plus` supports Bluetooth Low Energy, not Bluetooth Classic.
+
+Many inexpensive thermal printers use Bluetooth Classic. Those devices need a separate future transport/discovery implementation rather than being treated as BLE-compatible.
 
 ---
 
-## 12. Unified printer discovery
+## 15. `EscPosPrinterService`
 
-Files:
+File:
 
 ```text
-packages/report_engine/lib/src/printer/discovery/
-├── unified_printer.dart
-├── printer_discovery_source.dart
-├── printer_discovery_service.dart
-├── system_printer_discovery.dart
-└── bluetooth_printer_discovery.dart
+packages/report_engine/lib/src/printer/esc_pos_printer_service.dart
 ```
 
-Domain model:
+The service is orchestration, not rendering or transport implementation.
+
+Conceptually:
+
+```text
+parse template
+   ↓
+EscPosRenderer
+   ↓
+bytes
+   ↓
+EscPosTransport.send
+   ↓
+optional CutterCapability.cutPaper
+```
+
+If cut is requested without an explicit cutter capability, the service fails before sending the payload. This prevents a receipt from printing successfully and only then discovering that the requested hardware operation is unsupported.
+
+---
+
+# DISCOVERY
+
+## 16. Unified printer model
+
+File:
+
+```text
+packages/report_engine/lib/src/printer/discovery/unified_printer.dart
+```
 
 ```dart
 enum PrinterConnectionType {
@@ -475,18 +591,24 @@ enum PrinterConnectionType {
   bluetooth,
   embedded,
 }
-
-class UnifiedPrinter {
-  final String id;
-  final String name;
-  final PrinterConnectionType type;
-  final Map<String, String> metadata;
-}
 ```
 
-The domain model deliberately does not expose `printing.Printer`, `BluetoothDevice`, or Sunmi plugin objects.
+`UnifiedPrinter` contains domain-safe values such as:
 
-Discovery sources implement:
+```text
+id
+name
+type
+metadata
+```
+
+Raw plugin objects are intentionally not exposed.
+
+---
+
+## 17. Discovery sources
+
+Contract:
 
 ```dart
 abstract interface class PrinterDiscoverySource {
@@ -494,71 +616,24 @@ abstract interface class PrinterDiscoverySource {
 }
 ```
 
-The aggregator:
+Current sources:
 
-```dart
-final discovery = PrinterDiscoveryService.standard();
-final printers = await discovery.discoverAll();
-```
+- `SystemPrinterDiscovery`
+- `BluetoothPrinterDiscovery`
+- `SunmiPrinterAdapter` as an additional embedded source
 
-`discoverAll()` provides:
+`PrinterDiscoveryService.discoverAll()`:
 
-- source isolation: one plugin failure does not suppress other results
-- deterministic IDs where available
-- deduplication by ID
-- deterministic ordering
-- optional additional sources
-
-Additional adapters such as Sunmi can be injected without changing the core service.
-
----
-
-## 13. Sunmi companion package
-
-Package:
-
-```text
-packages/report_engine_sunmi/
-```
-
-Sunmi support is isolated because `sunmi_printer_plus` is Android-only.
-
-`SunmiPrinterAdapter` implements multiple core contracts:
-
-```text
-EscPosTransport
-PrinterDiscoverySource
-CutterCapability
-CashDrawerCapability
-```
-
-This means a single adapter can:
-
-- send rendered ESC/POS bytes to the embedded printer
-- participate in unified discovery
-- cut paper when supported by the Sunmi device
-- open the cash drawer when supported
+- invokes sources independently
+- isolates source exceptions
+- removes blank IDs
+- deduplicates by deterministic ID
+- sorts results deterministically
+- returns an immutable result
 
 Example:
 
 ```dart
-final sunmi = SunmiPrinterAdapter();
-final renderer = EscPosRenderer();
-
-final bytes = await renderer.renderQuickReceipt(
-  data: data,
-  encodingConfig: const EscPosEncodingConfig.raster(),
-);
-
-await sunmi.send(bytes);
-await sunmi.cutPaper();
-```
-
-Unified discovery with Sunmi:
-
-```dart
-final sunmi = SunmiPrinterAdapter();
-
 final discovery = PrinterDiscoveryService.standard(
   additionalSources: <PrinterDiscoverySource>[sunmi],
 );
@@ -566,21 +641,17 @@ final discovery = PrinterDiscoveryService.standard(
 final printers = await discovery.discoverAll();
 ```
 
-`rebindPrinter()` is also exposed for recovery when the Android Sunmi printer service is not ready or has been killed.
-
-See `docs/PHASE3_SUNMI_ADAPTER_AUDIT.md` for dependency/platform analysis.
-
 ---
 
-## 14. Hardware capabilities
+# HARDWARE CAPABILITIES
+
+## 18. Core capability contracts
 
 File:
 
 ```text
 packages/report_engine/lib/src/printer/capabilities/printer_hardware_capabilities.dart
 ```
-
-Contracts:
 
 ```dart
 abstract interface class CutterCapability {
@@ -589,125 +660,156 @@ abstract interface class CutterCapability {
 
 abstract interface class CashDrawerCapability {
   Future<void> openCashDrawer();
+  Future<bool> isCashDrawerOpen();
 }
 ```
 
-The core rule is:
-
-> A transport is not automatically a cutter, and a printer is not automatically a cash drawer controller.
-
-For example, `EscPosPrinterService.printReceiptWithTransport()` may receive an explicit `CutterCapability`. If cutting is requested but no cutter capability is supplied, the operation fails cleanly before output is sent.
-
-This prevents assumptions such as “all Bluetooth receipt printers support cut”.
-
-The intended sequence is:
-
-```text
-render
-  ↓
-send bytes
-  ↓
-cutPaper() only when explicit capability exists
-```
-
-Quick-receipt and renderer output contain no implicit cut command.
+The design relies on **interface presence** rather than assuming every printer supports every hardware command.
 
 ---
 
-## 15. EscPosPrinterService orchestration
+# SUNMI
+
+## 19. Why Sunmi is a companion package
+
+Package:
+
+```text
+packages/report_engine_sunmi
+```
+
+`sunmi_printer_plus` is Android-specific. Keeping it outside `report_engine` preserves the cross-platform dependency boundary of core.
+
+Audit details:
+
+```text
+docs/PHASE3_SUNMI_ADAPTER_AUDIT.md
+```
+
+---
+
+## 20. `SunmiPrinterBridge`
 
 File:
 
 ```text
-packages/report_engine/lib/src/printer/esc_pos_printer_service.dart
+packages/report_engine_sunmi/lib/src/sunmi_printer_bridge.dart
 ```
 
-The service now orchestrates rendering + transport rather than owning every printer concern.
+The bridge wraps plugin APIs such as:
 
-Conceptual call:
+```text
+printEscPos
+cutPaper
+openDrawer
+isDrawerOpen
+getId
+getType
+getVersion
+rebindPrinter
+```
+
+Tests inject a fake bridge so package behavior can be validated without a physical Sunmi terminal.
+
+---
+
+## 21. `SunmiHardwareProfile`
+
+Phase 3 review established that Sunmi cutter/drawer support must **not** be declared universally.
+
+The safe model is:
 
 ```dart
-await service.printReceiptWithTransport(
-  transport: transport,
-  templateJson: templateJson,
-  data: data,
-  encodingConfig: encoding,
-  cutAfterPrint: true,
-  cutter: cutter,
+const SunmiHardwareProfile(
+  supportsCutter: false,
+  supportsCashDrawer: false,
+)
+```
+
+Default:
+
+```text
+print-only
+```
+
+A host app enables optional hardware only from its verified device inventory:
+
+```dart
+final sunmi = SunmiPrinterAdapter(
+  hardwareProfile: const SunmiHardwareProfile(
+    supportsCutter: true,
+    supportsCashDrawer: false,
+  ),
 );
 ```
 
-Responsibilities:
+The adapter factory selects an internal implementation whose runtime type implements only the confirmed interfaces.
+
+Therefore:
 
 ```text
-EscPosPrinterService
-├── parse template
-├── invoke EscPosRenderer
-├── send through EscPosTransport
-└── optionally invoke explicit CutterCapability
+unsupported cutter
+→ adapter is NOT CutterCapability
+
+unsupported drawer
+→ adapter is NOT CashDrawerCapability
 ```
 
-It does not generate legacy cut bytes itself anymore.
-
-The direct Bluetooth entry point remains as a compatibility facade, but cutting is not assumed for generic Bluetooth printers.
+This is stronger than simply exposing methods that may fail after printing.
 
 ---
 
-## 16. Offline template storage
+## 22. Sunmi discovery metadata
 
-File:
+Sunmi discovery returns an embedded `UnifiedPrinter`.
+
+Metadata includes capability flags derived from the supplied `SunmiHardwareProfile`, not unconditional `true` values.
+
+Typical fields:
 
 ```text
-packages/report_engine/lib/src/services/template_storage_service.dart
+deviceId
+type
+version
+adapter
+cutter
+cashDrawer
 ```
 
-Hive stores template JSON locally.
-
-```dart
-final storage = TemplateStorageService();
-await storage.init();
-await storage.saveTemplate('receipt', template);
-final cached = await storage.getTemplate('receipt');
-```
-
-Designer lifecycle operations build on this service for create/save/save-as/rename/load/delete/duplicate workflows.
-
-Rendering remains storage-agnostic.
+These values describe configured/verified software knowledge. They are not a substitute for physical compatibility evidence.
 
 ---
 
-## 17. Designer V2
+# DESIGNER
 
-The Designer now includes:
+## 23. Designer relationship
 
-- template gallery
-- built-in 80mm, 58mm, A4, and 4x6 templates
-- persistent template lifecycle
-- JSON import/export/share
-- table column editor
-- 5mm snap-to-grid
-- center guides
-- millimeter rulers
-- 50%–200% zoom
+`apps/designer` authors the same template contract consumed by `report_engine`.
+
+Key capabilities after Phase 2:
+
+- Gallery
+- built-in templates
+- save/load
+- import/export/share
+- table-column editor
+- snap-to-grid
+- rulers
+- zoom
 - undo/redo
 - keyboard shortcuts
 
-The central invariant remains:
+The dependency rule remains:
 
-```text
-saved geometry = physical millimeters
-zoom = presentation only
-```
-
-PDF preview uses the same template JSON consumed by external applications, making preview an integration test of the shared contract rather than a separate rendering implementation.
+> Designer may depend on `report_engine`; `report_engine` must not depend on Designer UI.
 
 ---
 
-## 18. Test boundaries
+# TESTING
 
-### Core engine
+## 24. Engine test boundaries
 
-Important Phase 3 suites include:
+Important Phase 3 tests include:
 
 ```text
 esc_pos_text_encoder_test.dart
@@ -716,147 +818,153 @@ esc_pos_printer_service_capability_test.dart
 printer_discovery_service_test.dart
 ```
 
-They verify:
+They cover:
 
-- TIS-620 / CP874 byte mappings
-- Thai raster selection
-- renderer output does not implicitly cut
-- transport + cutter ordering
-- missing cutter capability fails safely
-- discovery aggregation/deduplication/error isolation/order
-
-Existing engine suites continue to cover template parsing, value resolution, PDF structure, Thai PDF, multi-page rendering, storage, and system-printer facade behavior.
-
-### Sunmi package
-
-```text
-packages/report_engine_sunmi/test/sunmi_printer_adapter_test.dart
-```
-
-It verifies bridge delegation, embedded discovery, transport behavior, cutter/cash-drawer capability conformance, and rebind behavior without requiring physical hardware.
-
-### Example application
-
-The example tests validate that public API actions render correctly in the consuming application, including legacy and Thai-raster ESC/POS generation paths.
-
-### Designer
-
-Designer tests cover gallery/lifecycle/editor/history/geometry/responsive behavior and keep document-authoring regressions isolated from printer-plugin tests.
+- Thai byte mappings
+- CP874 extensions
+- raster strategy routing
+- no implicit cut command
+- quick-receipt column preservation
+- discovery composition/dedup/error isolation
+- unsupported cut behavior
+- `send -> cut` ordering
 
 ---
 
-## 19. Validation status vs physical compatibility
+## 25. Sunmi tests
 
-Phase 3 software validation covers:
+Package tests validate:
+
+- raw byte forwarding
+- embedded discovery
+- print-only default
+- cutter-only profile
+- drawer-only profile
+- full capability profile
+- capability runtime types
+- cut/drawer delegation
+- service rebind
+
+These are software tests only and do not constitute physical Sunmi certification.
+
+---
+
+## 26. Current validation state
+
+Reviewed Phase 3 head:
 
 ```text
-format
-analyze
-unit/widget tests
-example Android build
-Sunmi companion package tests
+97a831c14ab83ff10f93147e7a3942846eb639dd
 ```
 
-This proves the software contracts and compile/test boundaries.
+Validated:
 
-It does **not** prove physical compatibility with a specific printer model.
+- `report_engine` analyze/tests
+- `report_engine_sunmi` format/analyze/tests
+- Designer analyze/tests
+- Web build
+- Android build
+- Linux build
+- Windows build
+- macOS build
+- iOS simulator build
+- PR review threads resolved
+- GitHub CI run #49 successful
 
-Examples of hardware evidence still requiring a real device:
-
-- XP-80 CP874 code-table number
-- XP-58 Thai code-page behavior
-- Epson TM-T88V Thai output
-- real cutter behavior
-- real cash drawer pulse behavior
-- Sunmi V2 print/cut/drawer behavior
-
-Until tested on hardware, such cases remain:
+Still separate:
 
 ```text
 NEEDS PHYSICAL VERIFICATION
 ```
 
+for printer-specific Thai rendering and model-specific cutter/drawer compatibility.
+
 ---
 
-## 20. Debugging map
+# DEBUGGING MAP
+
+## 27. Where failures belong
 
 ```text
-Template/resolver test fails
-    -> report contract or expression semantics
+Template/resolver failure
+    -> ReportTemplate / ReportValueResolver
 
-PDF test fails
-    -> PdfRenderService / fonts / PDF dependency
+PDF failure
+    -> PdfRenderService / font assets
 
-Thai ESC/POS bytes wrong
-    -> EscPosTextEncoder / encoding config
+Thai code-page bytes wrong
+    -> EscPosTextEncoder / EscPosEncodingConfig
 
 Thai raster wrong
-    -> FlutterEscPosRasterizer / bundled font path
+    -> FlutterEscPosRasterizer / font loading / threshold
 
-ESC/POS document layout wrong
-    -> EscPosRenderer
+Quick-receipt alignment wrong
+    -> EscPosRenderer 8/2/2 layout
 
-Bytes correct but BLE printer fails
-    -> BluetoothEscPosTransport / BLE permissions / device behavior
+Bytes correct but printer receives nothing
+    -> EscPosTransport
 
-Discovery misses one mechanism
-    -> corresponding PrinterDiscoverySource
+BLE discovery/connectivity issue
+    -> Bluetooth discovery/transport
 
-One discovery plugin crashes all discovery
-    -> PrinterDiscoveryService isolation regression
+System printer issue
+    -> printing package facade/discovery
 
-Cut requested but unavailable
-    -> missing CutterCapability; do not add implicit cut bytes
+Sunmi service issue
+    -> SunmiPrinterBridge / rebind
 
-Sunmi-specific failure
-    -> report_engine_sunmi bridge/plugin/device service
-
-Designer behavior fails
-    -> Designer controller/page/widgets
+Cut/drawer shown on unsupported Sunmi
+    -> SunmiHardwareProfile / adapter factory
 ```
+
+This separation is intentional: a connection failure should not be debugged inside rendering logic, and a layout regression should not be fixed in transport code.
 
 ---
 
-## 21. Where to change code
+# EXTENSION GUIDE
 
-| Requirement | Primary location |
-| --- | --- |
-| Add template field | `report_template.dart` |
-| Change expression behavior | `report_value_resolver.dart` |
-| Add PDF behavior | `pdf_render_service.dart` |
-| Change system printing | `printer_service.dart` |
-| Change ESC/POS document layout | `rendering/esc_pos_renderer.dart` |
-| Change Thai code-page mapping | `encoding/esc_pos_text_encoder.dart` |
-| Change raster Thai output | `rendering/esc_pos_rasterizer.dart` |
-| Add connection mechanism | implement `EscPosTransport` |
-| Add discovery mechanism | implement `PrinterDiscoverySource` |
-| Change discovery aggregation | `printer_discovery_service.dart` |
-| Add cut support | implement `CutterCapability` in compatible adapter |
-| Add cash drawer support | implement `CashDrawerCapability` in compatible adapter |
-| Change BLE behavior | `bluetooth_esc_pos_transport.dart` |
-| Change Sunmi behavior | `packages/report_engine_sunmi/` |
-| Change offline persistence | `template_storage_service.dart` |
-| Change Designer authoring | `apps/designer/lib/` |
-| Change CI gates | `.github/workflows/ci.yml` |
+## 28. Add a new transport
 
-A new printer integration should normally compose existing contracts instead of modifying renderers:
+Implement:
 
-```text
-new adapter
-  ├── EscPosTransport          if it sends ESC/POS bytes
-  ├── PrinterDiscoverySource   if it can be discovered
-  ├── CutterCapability         if it can cut
-  └── CashDrawerCapability     if it controls a drawer
+```dart
+EscPosTransport
 ```
 
-This is the primary extension point established by Phase 3.
+Example targets:
+
+- TCP/IP
+- USB
+- Bluetooth Classic
+
+Do not add connection code to `EscPosRenderer`.
+
+## 29. Add a new discovery mechanism
+
+Implement:
+
+```dart
+PrinterDiscoverySource
+```
+
+Then add it to `PrinterDiscoveryService` composition.
+
+Return `UnifiedPrinter`, not raw plugin types.
+
+## 30. Add optional physical capabilities
+
+Implement core capability interfaces only when the concrete hardware profile truly supports them.
+
+Do not use a universal adapter type that always implements `CutterCapability` or `CashDrawerCapability` when model support varies.
 
 ---
 
-## 22. Phase boundary
+# NEXT ARCHITECTURAL WORK
 
-Phase 3 implementation and maintainer-confirmed local validation are complete for Tasks 9–12.
+Phase 4 should strengthen CI and documentation without undoing these boundaries.
 
-Before Phase 4 starts, the Phase 3 branch must go through PR review and CI and then merge into `main` according to the repository phase-boundary rule.
+Highest-priority CI improvement:
 
-Physical printer validation remains a separate evidence track and is not a blocker for software architecture completion, but no hardware compatibility claim may be made without that evidence.
+> add an explicit `report_engine_sunmi` format/analyze/test job, because Phase 3 required a separate maintainer validation for that companion package.
+
+Also retain the existing Designer multi-platform build matrix and add/retain example APK validation.
