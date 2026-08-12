@@ -283,7 +283,7 @@ class EscPosRenderer {
 
   int _scale(Map<String, dynamic> style) {
     final raw = style['scale'] ?? style['textScale'];
-    if (raw is num) return raw.toInt().clamp(1, 8);
+    if (raw is num) return raw.toInt().clamp(1, 8).toInt();
     return 1;
   }
 
