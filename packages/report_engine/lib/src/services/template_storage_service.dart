@@ -23,8 +23,12 @@ class TemplateStorageService {
 
   Future<void> saveTemplate(String id, Map<String, dynamic> template) async {
     final normalizedId = _normalizeId(id);
+    final normalizedTemplate = Map<String, dynamic>.from(template)
+      ..['id'] = normalizedId
+      ..putIfAbsent('version', () => 1);
+    decodeTemplate(jsonEncode(normalizedTemplate));
     final box = await _ensureBox();
-    await box.put(normalizedId, jsonEncode(template));
+    await box.put(normalizedId, jsonEncode(normalizedTemplate));
   }
 
   Future<Map<String, dynamic>?> getTemplate(String id) async {
@@ -59,7 +63,8 @@ class TemplateStorageService {
       throw StateError('Template "$targetId" already exists.');
     }
 
-    await box.put(targetId, raw);
+    final template = decodeTemplate(raw)..['id'] = targetId;
+    await box.put(targetId, jsonEncode(template));
     await box.delete(sourceId);
   }
 
@@ -74,7 +79,9 @@ class TemplateStorageService {
     if (box.containsKey(target)) {
       throw StateError('Template "$target" already exists.');
     }
-    await box.put(target, raw);
+
+    final template = decodeTemplate(raw)..['id'] = target;
+    await box.put(target, jsonEncode(template));
   }
 
   Future<void> deleteTemplate(String id) async {
