@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 
 import '../controllers/designer_document_controller.dart';
+import '../services/template_file_exporter.dart';
 
 class DesignerPage extends StatefulWidget {
   const DesignerPage({
@@ -72,7 +73,11 @@ class _DesignerPageState extends State<DesignerPage> {
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_templateId == null ? 'Report Designer' : 'Report Designer — $_templateId'),
+          title: Text(
+            _templateId == null
+                ? 'Report Designer'
+                : 'Report Designer — $_templateId',
+          ),
           actions: [
             IconButton(
               tooltip: 'Undo',
@@ -115,7 +120,7 @@ class _DesignerPageState extends State<DesignerPage> {
                 children: [
                   _canvas(),
                   SizedBox(
-                    height: 260,
+                    height: 270,
                     child: Row(
                       children: [
                         Expanded(child: _leftPanel(expandWidth: true)),
@@ -131,6 +136,7 @@ class _DesignerPageState extends State<DesignerPage> {
 
   Widget _leftPanel({bool expandWidth = false}) {
     final paper = _document.paper;
+    final paperType = paper['type']?.toString() ?? 'thermal';
     return SizedBox(
       width: expandWidth ? null : 190,
       child: Material(
@@ -138,7 +144,10 @@ class _DesignerPageState extends State<DesignerPage> {
         child: ListView(
           children: [
             const ListTile(
-              title: Text('Add Element', style: TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(
+                'Add Element',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
             _addButton('Text', Icons.text_fields, 'text'),
             _addButton('Dynamic {{field}}', Icons.data_object, 'dynamic_text'),
@@ -147,45 +156,28 @@ class _DesignerPageState extends State<DesignerPage> {
             _addButton('QR Code', Icons.qr_code, 'qrcode'),
             _addButton('Barcode', Icons.view_week, 'barcode'),
             const Divider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: DropdownButtonFormField<String>(
+                // Flutter 3.32.7 still requires `value` here.
+                // ignore: deprecated_member_use
+                value: _validPaperType(paperType),
+                decoration: const InputDecoration(labelText: 'Paper Type'),
+                items: const [
+                  DropdownMenuItem(value: 'thermal', child: Text('Thermal')),
+                  DropdownMenuItem(value: 'a4', child: Text('A4')),
+                  DropdownMenuItem(value: 'pdf', child: Text('PDF')),
+                ],
+                onChanged: _changePaperType,
+              ),
+            ),
+            const SizedBox(height: 12),
             ListTile(
               dense: true,
-              title: Text('Paper: ${_number(paper['widthMm']).toStringAsFixed(1)} mm'),
+              title: Text(
+                'Paper: ${_number(paper['widthMm']).toStringAsFixed(1)} mm',
+              ),
             ),
-            DropdownButtonFormField<String>(
-              value: paper['type']?.toString() ?? 'thermal',
-              decoration: const InputDecoration(labelText: 'Paper Type'),
-              items: const [
-                DropdownMenuItem(value: 'thermal', child: Text('Thermal')),
-                DropdownMenuItem(value: 'a4', child: Text('A4')),
-                DropdownMenuItem(value: 'pdf', child: Text('PDF')),
-              ],
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  switch (value) {
-                    case 'a4':
-                      _document.setPaper(
-                        type: value,
-                        widthMm: 210,
-                        heightMm: 297,
-                        autoHeight: false,
-                      );
-                      break;
-                    case 'thermal':
-                      _document.setPaper(
-                        type: value,
-                        widthMm: 80,
-                        heightMm: 200,
-                        autoHeight: true,
-                      );
-                      break;
-                    default:
-                      _document.setPaper(type: value, autoHeight: false);
-                  }
-                });
-              },
-            ),
-            const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text('Zoom ${(_document.zoom * 100).round()}%'),
@@ -199,7 +191,10 @@ class _DesignerPageState extends State<DesignerPage> {
             ),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Text('5 mm snap grid • rulers in mm', style: TextStyle(fontSize: 11)),
+              child: Text(
+                '5 mm snap grid • rulers in mm',
+                style: TextStyle(fontSize: 11),
+              ),
             ),
           ],
         ),
@@ -227,8 +222,7 @@ class _DesignerPageState extends State<DesignerPage> {
       child: ColoredBox(
         color: Colors.grey.shade300,
         child: InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 2,
+          scaleEnabled: false,
           boundaryMargin: const EdgeInsets.all(120),
           child: Center(
             child: Row(
@@ -247,19 +241,15 @@ class _DesignerPageState extends State<DesignerPage> {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          Positioned(
-                            left: widthMm * scale / 2,
-                            top: 0,
-                            bottom: 0,
-                            child: Container(width: 1, color: Colors.lightBlueAccent.withValues(alpha: 0.4)),
+                          _verticalCenterGuide(widthMm, scale),
+                          _horizontalCenterGuide(heightMm, scale),
+                          ..._document.elements.map(
+                            (element) => _positionedElement(
+                              element,
+                              scale,
+                              widthMm,
+                            ),
                           ),
-                          Positioned(
-                            top: heightMm * scale / 2,
-                            left: 0,
-                            right: 0,
-                            child: Container(height: 1, color: Colors.lightBlueAccent.withValues(alpha: 0.4)),
-                          ),
-                          ..._document.elements.map((element) => _positionedElement(element, scale, widthMm)),
                         ],
                       ),
                     ),
@@ -273,18 +263,42 @@ class _DesignerPageState extends State<DesignerPage> {
     );
   }
 
+  Widget _verticalCenterGuide(double widthMm, double scale) => Positioned(
+        left: widthMm * scale / 2,
+        top: 0,
+        bottom: 0,
+        child: Container(
+          width: 1,
+          color: Colors.lightBlueAccent.withValues(alpha: 0.4),
+        ),
+      );
+
+  Widget _horizontalCenterGuide(double heightMm, double scale) => Positioned(
+        top: heightMm * scale / 2,
+        left: 0,
+        right: 0,
+        child: Container(
+          height: 1,
+          color: Colors.lightBlueAccent.withValues(alpha: 0.4),
+        ),
+      );
+
   Widget _horizontalRuler(double widthMm, double scale) {
     final marks = (widthMm / 10).floor();
     return SizedBox(
       width: widthMm * scale,
       height: 22,
       child: Stack(
-        children: List.generate(marks + 1, (index) {
-          return Positioned(
+        children: List.generate(
+          marks + 1,
+          (index) => Positioned(
             left: index * 10 * scale,
-            child: Text('${index * 10}', style: const TextStyle(fontSize: 9)),
-          );
-        }),
+            child: Text(
+              '${index * 10}',
+              style: const TextStyle(fontSize: 9),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -295,33 +309,58 @@ class _DesignerPageState extends State<DesignerPage> {
       width: 28,
       height: heightMm * scale + 22,
       child: Stack(
-        children: List.generate(marks + 1, (index) {
-          return Positioned(
+        children: List.generate(
+          marks + 1,
+          (index) => Positioned(
             top: 22 + index * 10 * scale,
             right: 2,
-            child: Text('${index * 10}', style: const TextStyle(fontSize: 9)),
-          );
-        }),
+            child: Text(
+              '${index * 10}',
+              style: const TextStyle(fontSize: 9),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _positionedElement(Map<String, dynamic> element, double scale, double widthMm) {
+  Widget _positionedElement(
+    Map<String, dynamic> element,
+    double scale,
+    double widthMm,
+  ) {
     final selected = element['id'] == _document.selectedId;
     return Positioned(
       left: _number(element['x']) * scale,
       top: _number(element['y']) * scale,
       child: GestureDetector(
-        onTap: () => setState(() => _document.selectedId = element['id']?.toString()),
+        onTap: () => setState(
+          () => _document.selectedId = element['id']?.toString(),
+        ),
+        onPanStart: (_) {
+          setState(() {
+            _document.selectedId = element['id']?.toString();
+            _document.beginInteraction();
+          });
+        },
         onPanUpdate: (details) {
           final current = _document.selectedElement;
           if (current == null) return;
-          final width = _number(current['w']);
+          final elementWidth = _number(current['w']);
+          final maxX = (widthMm - elementWidth).clamp(0, widthMm).toDouble();
           final x = (_number(current['x']) + details.delta.dx / scale)
-              .clamp(0, (widthMm - width).clamp(0, widthMm))
+              .clamp(0, maxX)
               .toDouble();
-          final y = (_number(current['y']) + details.delta.dy / scale).clamp(0, 1000).toDouble();
-          setState(() => _document.moveSelected(x, y));
+          final y = (_number(current['y']) + details.delta.dy / scale)
+              .clamp(0, 1000)
+              .toDouble();
+          setState(() => _document.moveSelectedInteractive(x, y));
+        },
+        onPanEnd: (_) {
+          setState(() => _document.endInteraction());
+        },
+        onPanCancel: () {
+          setState(() => _document.endInteraction());
         },
         child: Container(
           width: _number(element['w'], fallback: 20) * scale,
@@ -344,15 +383,21 @@ class _DesignerPageState extends State<DesignerPage> {
     final type = element['type'];
     if (type == 'line') return const Divider(height: 1, thickness: 1);
     if (type == 'qrcode') return const FittedBox(child: Icon(Icons.qr_code));
-    if (type == 'barcode') return const FittedBox(child: Icon(Icons.view_week));
+    if (type == 'barcode') {
+      return const FittedBox(child: Icon(Icons.view_week));
+    }
     if (type == 'table') {
       return ColoredBox(
         color: Colors.black12,
         child: Center(
-          child: Text(element['key']?.toString() ?? '{{items}}', style: const TextStyle(fontSize: 8)),
+          child: Text(
+            element['key']?.toString() ?? '{{items}}',
+            style: const TextStyle(fontSize: 8),
+          ),
         ),
       );
     }
+
     final style = _style(element);
     return Align(
       alignment: _flutterAlignment(style['align']?.toString()),
@@ -362,7 +407,8 @@ class _DesignerPageState extends State<DesignerPage> {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: _number(style['fontSize'], fallback: 10) * 0.8,
-          fontWeight: style['bold'] == true ? FontWeight.bold : FontWeight.normal,
+          fontWeight:
+              style['bold'] == true ? FontWeight.bold : FontWeight.normal,
         ),
       ),
     );
@@ -389,13 +435,18 @@ class _DesignerPageState extends State<DesignerPage> {
           padding: const EdgeInsets.all(12),
           child: ListView(
             children: [
-              const Text('Properties', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Properties',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 12),
               TextFormField(
                 key: ValueKey('key-${selected['id']}-${selected['key']}'),
                 initialValue: selected['key']?.toString() ?? '',
                 decoration: const InputDecoration(labelText: 'Key / Text'),
-                onFieldSubmitted: (value) => setState(() => _document.updateSelected('key', value)),
+                onFieldSubmitted: (value) => setState(
+                  () => _document.updateSelected('key', value),
+                ),
               ),
               Row(
                 children: [
@@ -416,10 +467,14 @@ class _DesignerPageState extends State<DesignerPage> {
                   const Text('Font'),
                   Expanded(
                     child: Slider(
-                      value: _number(style['fontSize'], fallback: 10).clamp(6, 30).toDouble(),
+                      value: _number(style['fontSize'], fallback: 10)
+                          .clamp(6, 30)
+                          .toDouble(),
                       min: 6,
                       max: 30,
-                      onChanged: (value) => setState(() => _document.updateSelectedStyle('fontSize', value)),
+                      onChanged: (value) => setState(
+                        () => _document.updateSelectedStyle('fontSize', value),
+                      ),
                     ),
                   ),
                 ],
@@ -428,10 +483,14 @@ class _DesignerPageState extends State<DesignerPage> {
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Bold'),
                 value: style['bold'] == true,
-                onChanged: (value) => setState(() => _document.updateSelectedStyle('bold', value == true)),
+                onChanged: (value) => setState(
+                  () => _document.updateSelectedStyle('bold', value == true),
+                ),
               ),
               DropdownButtonFormField<String>(
-                value: style['align']?.toString() ?? 'left',
+                // Flutter 3.32.7 still requires `value` here.
+                // ignore: deprecated_member_use
+                value: _validAlignment(style['align']),
                 decoration: const InputDecoration(labelText: 'Alignment'),
                 items: const [
                   DropdownMenuItem(value: 'left', child: Text('Left')),
@@ -439,7 +498,8 @@ class _DesignerPageState extends State<DesignerPage> {
                   DropdownMenuItem(value: 'right', child: Text('Right')),
                 ],
                 onChanged: (value) {
-                  if (value != null) setState(() => _document.updateSelectedStyle('align', value));
+                  if (value == null) return;
+                  setState(() => _document.updateSelectedStyle('align', value));
                 },
               ),
               if (selected['type'] == 'table') ...[
@@ -463,13 +523,17 @@ class _DesignerPageState extends State<DesignerPage> {
     final columns = (selected['columns'] as List<dynamic>? ?? const <dynamic>[])
         .map((value) => Map<String, dynamic>.from(value as Map))
         .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Table Columns', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Table Columns',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             IconButton(
               tooltip: 'Add column',
               onPressed: () => setState(_document.addTableColumn),
@@ -478,91 +542,130 @@ class _DesignerPageState extends State<DesignerPage> {
           ],
         ),
         for (var index = 0; index < columns.length; index++)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          key: ValueKey('column-key-$index-${columns[index]['key']}'),
-                          initialValue: columns[index]['key']?.toString() ?? '',
-                          decoration: const InputDecoration(labelText: 'key'),
-                          onFieldSubmitted: (value) => setState(() => _document.updateTableColumn(index, 'key', value)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextFormField(
-                          key: ValueKey('column-label-$index-${columns[index]['label']}'),
-                          initialValue: columns[index]['label']?.toString() ?? '',
-                          decoration: const InputDecoration(labelText: 'label'),
-                          onFieldSubmitted: (value) => setState(() => _document.updateTableColumn(index, 'label', value)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          key: ValueKey('column-width-$index-${columns[index]['width']}'),
-                          initialValue: '${columns[index]['width'] ?? 1}',
-                          decoration: const InputDecoration(labelText: 'width'),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          onFieldSubmitted: (value) => setState(() => _document.updateTableColumn(index, 'width', value)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: columns[index]['alignment']?.toString() ?? 'left',
-                          decoration: const InputDecoration(labelText: 'alignment'),
-                          items: const [
-                            DropdownMenuItem(value: 'left', child: Text('Left')),
-                            DropdownMenuItem(value: 'center', child: Text('Center')),
-                            DropdownMenuItem(value: 'right', child: Text('Right')),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) setState(() => _document.updateTableColumn(index, 'alignment', value));
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      IconButton(
-                        tooltip: 'Move column up',
-                        onPressed: index > 0 ? () => setState(() => _document.reorderTableColumn(index, index - 1)) : null,
-                        icon: const Icon(Icons.arrow_upward),
-                      ),
-                      IconButton(
-                        tooltip: 'Move column down',
-                        onPressed: index < columns.length - 1
-                            ? () => setState(() => _document.reorderTableColumn(index, index + 1))
-                            : null,
-                        icon: const Icon(Icons.arrow_downward),
-                      ),
-                      IconButton(
-                        tooltip: 'Remove column',
-                        onPressed: () => setState(() => _document.removeTableColumn(index)),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _columnCard(columns[index], index, columns.length),
       ],
     );
   }
 
-  Widget _numberField(Map<String, dynamic> element, String key, String label) {
+  Widget _columnCard(
+    Map<String, dynamic> column,
+    int index,
+    int columnCount,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    key: ValueKey('column-key-$index-${column['key']}'),
+                    initialValue: column['key']?.toString() ?? '',
+                    decoration: const InputDecoration(labelText: 'key'),
+                    onFieldSubmitted: (value) => setState(
+                      () => _document.updateTableColumn(index, 'key', value),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    key: ValueKey('column-label-$index-${column['label']}'),
+                    initialValue: column['label']?.toString() ?? '',
+                    decoration: const InputDecoration(labelText: 'label'),
+                    onFieldSubmitted: (value) => setState(
+                      () => _document.updateTableColumn(index, 'label', value),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    key: ValueKey('column-width-$index-${column['width']}'),
+                    initialValue: '${column['width'] ?? 1}',
+                    decoration: const InputDecoration(labelText: 'width'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    onFieldSubmitted: (value) => setState(
+                      () => _document.updateTableColumn(index, 'width', value),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    // Flutter 3.32.7 still requires `value` here.
+                    // ignore: deprecated_member_use
+                    value: _validAlignment(
+                      column['alignment'] ?? column['align'],
+                    ),
+                    decoration:
+                        const InputDecoration(labelText: 'alignment'),
+                    items: const [
+                      DropdownMenuItem(value: 'left', child: Text('Left')),
+                      DropdownMenuItem(value: 'center', child: Text('Center')),
+                      DropdownMenuItem(value: 'right', child: Text('Right')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(
+                        () => _document.updateTableColumn(
+                          index,
+                          'alignment',
+                          value,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  tooltip: 'Move column up',
+                  onPressed: index > 0
+                      ? () => setState(
+                            () => _document.reorderTableColumn(index, index - 1),
+                          )
+                      : null,
+                  icon: const Icon(Icons.arrow_upward),
+                ),
+                IconButton(
+                  tooltip: 'Move column down',
+                  onPressed: index < columnCount - 1
+                      ? () => setState(
+                            () => _document.reorderTableColumn(index, index + 1),
+                          )
+                      : null,
+                  icon: const Icon(Icons.arrow_downward),
+                ),
+                IconButton(
+                  tooltip: 'Remove column',
+                  onPressed: () => setState(
+                    () => _document.removeTableColumn(index),
+                  ),
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _numberField(
+    Map<String, dynamic> element,
+    String key,
+    String label,
+  ) {
     return TextFormField(
       key: ValueKey('$key-${element['id']}-${element[key]}'),
       initialValue: _number(element[key]).toStringAsFixed(1),
@@ -572,14 +675,14 @@ class _DesignerPageState extends State<DesignerPage> {
         final parsed = double.tryParse(value);
         if (parsed == null) return;
         setState(() {
+          final selected = _document.selectedElement;
+          if (selected == null) return;
           if (key == 'x' || key == 'y') {
-            final selected = _document.selectedElement!;
             _document.moveSelected(
               key == 'x' ? parsed : _number(selected['x']),
               key == 'y' ? parsed : _number(selected['y']),
             );
           } else {
-            final selected = _document.selectedElement!;
             _document.resizeSelected(
               key == 'w' ? parsed : _number(selected['w']),
               key == 'h' ? parsed : _number(selected['h']),
@@ -599,15 +702,34 @@ class _DesignerPageState extends State<DesignerPage> {
       'key': _defaultKey(type),
       'x': 5.0,
       'y': DesignerDocumentController.snapMm(5.0 + count * 12),
-      'w': type == 'line' ? 60.0 : 60.0,
+      'w': 60.0,
       'h': type == 'qrcode' || type == 'barcode' ? 30.0 : 10.0,
-      'style': <String, dynamic>{'fontSize': type == 'text' ? 12.0 : 10.0, 'bold': false, 'align': 'left'},
+      'style': <String, dynamic>{
+        'fontSize': type == 'text' ? 12.0 : 10.0,
+        'bold': false,
+        'align': 'left',
+      },
     };
     if (type == 'table') {
       element['columns'] = <Map<String, dynamic>>[
-        {'key': 'name', 'label': 'Item', 'width': 2.0, 'alignment': 'left'},
-        {'key': 'qty', 'label': 'Qty', 'width': 1.0, 'alignment': 'right'},
-        {'key': 'price', 'label': 'Price', 'width': 1.0, 'alignment': 'right'},
+        {
+          'key': 'name',
+          'label': 'Item',
+          'width': 2.0,
+          'alignment': 'left',
+        },
+        {
+          'key': 'qty',
+          'label': 'Qty',
+          'width': 1.0,
+          'alignment': 'right',
+        },
+        {
+          'key': 'price',
+          'label': 'Price',
+          'width': 1.0,
+          'alignment': 'right',
+        },
       ];
       element['h'] = 35.0;
     }
@@ -630,6 +752,32 @@ class _DesignerPageState extends State<DesignerPage> {
     }
   }
 
+  void _changePaperType(String? value) {
+    if (value == null) return;
+    setState(() {
+      switch (value) {
+        case 'a4':
+          _document.setPaper(
+            type: value,
+            widthMm: 210,
+            heightMm: 297,
+            autoHeight: false,
+          );
+          break;
+        case 'thermal':
+          _document.setPaper(
+            type: value,
+            widthMm: 80,
+            heightMm: 200,
+            autoHeight: true,
+          );
+          break;
+        default:
+          _document.setPaper(type: value, autoHeight: false);
+      }
+    });
+  }
+
   Future<void> _handleTemplateAction(String action) async {
     switch (action) {
       case 'new':
@@ -637,37 +785,37 @@ class _DesignerPageState extends State<DesignerPage> {
           _document.createNew();
           _templateId = null;
         });
-        return;
+        break;
       case 'save':
         await _save();
-        return;
+        break;
       case 'saveAs':
         await _saveAs();
-        return;
+        break;
       case 'rename':
         await _rename();
-        return;
+        break;
       case 'load':
         await _load();
-        return;
+        break;
       case 'duplicate':
         await _duplicate();
-        return;
+        break;
       case 'delete':
         await _deleteTemplate();
-        return;
+        break;
       case 'import':
         await _importJson();
-        return;
+        break;
       case 'export':
         await _exportJson();
-        return;
+        break;
       case 'share':
         await _shareJson();
-        return;
+        break;
       case 'json':
         await _showTemplateJson();
-        return;
+        break;
     }
   }
 
@@ -677,16 +825,29 @@ class _DesignerPageState extends State<DesignerPage> {
     _storageReady = true;
   }
 
-  Future<String?> _askForId(String title, {String? initialValue}) async {
+  Future<String?> _askForId(
+    String title, {
+    String? initialValue,
+  }) async {
     final controller = TextEditingController(text: initialValue);
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'Template name')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Template name'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('OK')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('OK'),
+          ),
         ],
       ),
     );
@@ -714,7 +875,9 @@ class _DesignerPageState extends State<DesignerPage> {
     if (id == null) return;
     try {
       await _ensureStorage();
-      if (await _storage.containsTemplate(id)) throw StateError('Template "$id" already exists.');
+      if (await _storage.containsTemplate(id)) {
+        throw StateError('Template "$id" already exists.');
+      }
       final template = _document.document..['id'] = id;
       await _storage.saveTemplate(id, template);
       if (!mounted) return;
@@ -731,7 +894,10 @@ class _DesignerPageState extends State<DesignerPage> {
       await _saveAs();
       return;
     }
-    final target = await _askForId('Rename Template', initialValue: current);
+    final target = await _askForId(
+      'Rename Template',
+      initialValue: current,
+    );
     if (target == null || target == current) return;
     try {
       await _ensureStorage();
@@ -757,7 +923,14 @@ class _DesignerPageState extends State<DesignerPage> {
         context: context,
         builder: (context) => SimpleDialog(
           title: const Text('Load Template'),
-          children: ids.map((id) => SimpleDialogOption(onPressed: () => Navigator.pop(context, id), child: Text(id))).toList(),
+          children: ids
+              .map(
+                (id) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(context, id),
+                  child: Text(id),
+                ),
+              )
+              .toList(),
         ),
       );
       if (id == null) return;
@@ -778,7 +951,10 @@ class _DesignerPageState extends State<DesignerPage> {
       _showMessage('Save the template before duplicating it.');
       return;
     }
-    final target = await _askForId('Duplicate Template', initialValue: '$current-copy');
+    final target = await _askForId(
+      'Duplicate Template',
+      initialValue: '$current-copy',
+    );
     if (target == null) return;
     try {
       await _ensureStorage();
@@ -798,8 +974,14 @@ class _DesignerPageState extends State<DesignerPage> {
             title: const Text('Delete Template?'),
             content: Text('Delete "$current" from local storage?'),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
             ],
           ),
         ) ??
@@ -825,7 +1007,9 @@ class _DesignerPageState extends State<DesignerPage> {
       );
       if (result == null || result.files.isEmpty) return;
       final bytes = result.files.single.bytes;
-      if (bytes == null) throw const FormatException('Unable to read selected JSON file.');
+      if (bytes == null) {
+        throw const FormatException('Unable to read selected JSON file.');
+      }
       final template = _storage.decodeTemplate(utf8.decode(bytes));
       if (!mounted) return;
       setState(() {
@@ -840,16 +1024,14 @@ class _DesignerPageState extends State<DesignerPage> {
 
   Future<void> _exportJson() async {
     try {
-      final json = const JsonEncoder.withIndent('  ').convert(_document.document);
-      final name = '${_templateId ?? 'report-template'}.json';
-      await FilePicker.platform.saveFile(
-        dialogTitle: 'Export Template JSON',
-        fileName: name,
-        type: FileType.custom,
-        allowedExtensions: const ['json'],
+      final json = const JsonEncoder.withIndent(' ').convert(_document.document);
+      final exported = await exportTemplateJsonFile(
+        fileName: '${_templateId ?? 'report-template'}.json',
         bytes: Uint8List.fromList(utf8.encode(json)),
       );
-      _showMessage('JSON export completed.');
+      if (exported) {
+        _showMessage('JSON export completed.');
+      }
     } catch (error) {
       _showError('Unable to export JSON: $error');
     }
@@ -858,7 +1040,10 @@ class _DesignerPageState extends State<DesignerPage> {
   Future<void> _shareJson() async {
     try {
       final json = const JsonEncoder.withIndent('  ').convert(_document.document);
-      await Share.share(json, subject: '${_templateId ?? 'Report Template'}.json');
+      await Share.share(
+        json,
+        subject: '${_templateId ?? 'Report Template'}.json',
+      );
     } catch (error) {
       _showError('Unable to share JSON: $error');
     }
@@ -866,7 +1051,10 @@ class _DesignerPageState extends State<DesignerPage> {
 
   Future<void> _previewPdf() async {
     try {
-      final pdf = await _printer.generatePdf(templateJson: _document.document, data: _mockData);
+      final pdf = await _printer.generatePdf(
+        templateJson: _document.document,
+        data: _mockData,
+      );
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -887,8 +1075,16 @@ class _DesignerPageState extends State<DesignerPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Template JSON'),
-        content: SizedBox(width: 640, child: SingleChildScrollView(child: SelectableText(json))),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+        content: SizedBox(
+          width: 640,
+          child: SingleChildScrollView(child: SelectableText(json)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -898,22 +1094,25 @@ class _DesignerPageState extends State<DesignerPage> {
     final keyboard = HardwareKeyboard.instance;
     final command = keyboard.isControlPressed || keyboard.isMetaPressed;
     if (command && event.logicalKey == LogicalKeyboardKey.keyZ) {
-      if (keyboard.isShiftPressed) {
-        _redo();
-      } else {
-        _undo();
-      }
+      keyboard.isShiftPressed ? _redo() : _undo();
       return;
     }
-    if (event.logicalKey == LogicalKeyboardKey.delete || event.logicalKey == LogicalKeyboardKey.backspace) {
+    if (event.logicalKey == LogicalKeyboardKey.delete ||
+        event.logicalKey == LogicalKeyboardKey.backspace) {
       setState(_document.deleteSelected);
       return;
     }
+
     final step = keyboard.isShiftPressed ? 5.0 : 1.0;
-    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) setState(() => _document.nudgeSelected(-step, 0));
-    if (event.logicalKey == LogicalKeyboardKey.arrowRight) setState(() => _document.nudgeSelected(step, 0));
-    if (event.logicalKey == LogicalKeyboardKey.arrowUp) setState(() => _document.nudgeSelected(0, -step));
-    if (event.logicalKey == LogicalKeyboardKey.arrowDown) setState(() => _document.nudgeSelected(0, step));
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      setState(() => _document.nudgeSelected(-step, 0));
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      setState(() => _document.nudgeSelected(step, 0));
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() => _document.nudgeSelected(0, -step));
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() => _document.nudgeSelected(0, step));
+    }
   }
 
   void _undo() => setState(_document.undo);
@@ -921,19 +1120,29 @@ class _DesignerPageState extends State<DesignerPage> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   void _showError(String message) => _showMessage(message);
 
-  Map<String, dynamic> _style(Map<String, dynamic> element) {
-    final raw = element['style'];
-    return Map<String, dynamic>.from(raw as Map? ?? const {});
-  }
+  Map<String, dynamic> _style(Map<String, dynamic> element) =>
+      Map<String, dynamic>.from(element['style'] as Map? ?? const {});
 
   double _number(dynamic value, {double fallback = 0}) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  String _validPaperType(String value) =>
+      const {'thermal', 'a4', 'pdf'}.contains(value) ? value : 'pdf';
+
+  String _validAlignment(dynamic value) {
+    final alignment = value?.toString() ?? 'left';
+    return const {'left', 'center', 'right'}.contains(alignment)
+        ? alignment
+        : 'left';
   }
 
   Alignment _flutterAlignment(String? value) {
