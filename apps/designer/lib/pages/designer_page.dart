@@ -353,7 +353,7 @@ class _DesignerPageState extends State<DesignerPage> {
                     setState(() => style['bold'] = value == true),
               ),
               DropdownButtonFormField<String>(
-                initialValue: style['align']?.toString() ?? 'left',
+                value: style['align']?.toString() ?? 'left',
                 decoration: const InputDecoration(labelText: 'Alignment'),
                 items: const [
                   DropdownMenuItem(value: 'left', child: Text('Left')),
