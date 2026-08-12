@@ -1,17 +1,25 @@
 # Code Walkthrough
 
-This document explains how `flutter_report_suite` is structured after the refactor and how data moves from the visual Designer to PDF, system printing, and ESC/POS output.
+This document explains the current `flutter_report_suite` architecture, the runtime data flow, the Flutter platform layer, and the test/CI boundaries.
 
-## 1. Repository overview
+## 1. Repository map
 
 ```text
 flutter_report_suite/
 ├── .github/workflows/ci.yml
 ├── apps/
 │   └── designer/
+│       ├── android/
+│       ├── ios/
+│       ├── web/
+│       ├── macos/
+│       ├── windows/
+│       ├── linux/
 │       ├── assets/templates/
-│       ├── lib/main.dart
-│       └── lib/pages/designer_page.dart
+│       ├── lib/
+│       │   ├── main.dart
+│       │   └── pages/designer_page.dart
+│       └── test/designer_page_test.dart
 ├── packages/
 │   └── report_engine/
 │       ├── assets/templates/
@@ -20,27 +28,29 @@ flutter_report_suite/
 │       │   ├── report_engine.dart
 │       │   └── src/
 │       │       ├── models/report_template.dart
-│       │       ├── printer/
-│       │       │   ├── esc_pos_printer_service.dart
-│       │       │   └── printer_service.dart
-│       │       └── services/
-│       │           ├── pdf_render_service.dart
-│       │           ├── report_value_resolver.dart
-│       │           └── template_storage_service.dart
+│       │       ├── services/
+│       │       │   ├── report_value_resolver.dart
+│       │       │   ├── pdf_render_service.dart
+│       │       │   └── template_storage_service.dart
+│       │       └── printer/
+│       │           ├── printer_service.dart
+│       │           └── esc_pos_printer_service.dart
 │       └── test/
 │           ├── report_template_test.dart
-│           └── report_value_resolver_test.dart
+│           ├── report_value_resolver_test.dart
+│           ├── pdf_render_service_test.dart
+│           └── printer_service_test.dart
 └── docs/
     ├── CI.md
     └── CODE_WALKTHROUGH.md
 ```
 
-The repository has two main responsibilities:
+The repository is split into two responsibilities:
 
-- `apps/designer`: author template JSON visually.
-- `packages/report_engine`: consume template JSON plus runtime data and produce output.
+- `apps/designer`: visually authors the report contract.
+- `packages/report_engine`: consumes that contract and produces output.
 
-The important architectural rule is that the Designer does not invent a second report format. It creates the same JSON contract that `report_engine` consumes.
+The Designer depends on the engine. The engine never depends on the Designer.
 
 ---
 
@@ -49,14 +59,14 @@ The important architectural rule is that the Designer does not invent a second r
 ```mermaid
 flowchart LR
     A[Designer UI] --> B[Template JSON]
-    C[Runtime business data] --> D[report_engine]
+    C[Runtime data] --> D[report_engine]
     B --> D
-    D --> E[ReportTemplate model]
+    D --> E[ReportTemplate]
     E --> F[ReportValueResolver]
     F --> G[PdfRenderService]
     F --> H[EscPosPrinterService]
     G --> I[PDF bytes]
-    I --> J[Preview / System Print / Share]
+    I --> J[Preview / Share / System printer]
     H --> K[BLE ESC/POS printer]
     B --> L[TemplateStorageService]
     L --> D
@@ -66,10 +76,7 @@ Example runtime data:
 
 ```dart
 final data = {
-  'shop': {
-    'name': 'Dexter Coffee',
-    'branch': 'Nimman',
-  },
+  'shop': {'name': 'Dexter Coffee', 'branch': 'Nimman'},
   'orderId': 'ORD-001',
   'items': [
     {'name': 'Latte', 'qty': 2, 'price': 65},
@@ -78,7 +85,7 @@ final data = {
 };
 ```
 
-Example template expression:
+Example dynamic element:
 
 ```json
 {
@@ -97,40 +104,32 @@ Example template expression:
 }
 ```
 
-At render time, `{{shop.name}}` resolves to `Dexter Coffee`.
+`{{shop.name}}` resolves to `Dexter Coffee` at render time.
 
 ---
 
-## 3. Public package API
+## 3. Public engine API
 
-File:
-
-```text
-packages/report_engine/lib/report_engine.dart
-```
-
-This is the canonical package entrypoint:
+Canonical entrypoint:
 
 ```dart
 import 'package:report_engine/report_engine.dart';
 ```
 
-It exports only the package concepts applications are expected to use:
+`lib/report_engine.dart` exports the supported application-facing concepts:
 
-- report template models
+- template models
 - value resolver
 - PDF renderer
-- template storage
+- Hive template storage
 - system printer facade
-- ESC/POS printer service
+- ESC/POS Bluetooth printer service
 
-The old `flutter_offline_report.dart` file remains only as a compatibility export for older code. New code should import `report_engine.dart` through the package import above.
-
-Why this matters: before the refactor, the package directory was called `report_engine`, the Designer depended on `report_engine`, but the package itself was named `flutter_offline_report`. A single canonical package identity removes that ambiguity.
+`flutter_offline_report.dart` remains only as a deprecated compatibility export.
 
 ---
 
-## 4. Template model layer
+## 4. Template contract
 
 File:
 
@@ -138,11 +137,9 @@ File:
 packages/report_engine/lib/src/models/report_template.dart
 ```
 
-The model layer converts loosely typed JSON into objects the renderers can trust.
-
 ### `PaperConfig`
 
-Represents output paper configuration:
+Owns the output surface:
 
 ```text
 type
@@ -152,34 +149,25 @@ autoHeight
 marginMm
 ```
 
-Typical examples:
-
-- thermal 58 mm
-- thermal 80 mm
-- A4 210 × 297 mm
-- custom PDF dimensions
-
 ### `ReportElement`
 
-Represents one item placed in a template.
-
-Important fields:
+Owns one report item:
 
 ```text
-id       unique element identifier
-type     text / dynamic_text / line / table / qrcode / barcode
-key      literal text or data expression
-x, y     position in millimeters
-w, h     size in millimeters
-style    rendering options
-columns  table column definitions
+id
+ type
+key
+x / y
+w / h
+style
+columns
 ```
 
-The Designer and engine both treat geometry as millimeters. Conversion to PDF points belongs inside the PDF renderer, not inside the Designer.
+Geometry is persisted in millimeters. The Designer scales millimeters for display; the PDF renderer converts millimeters to PDF points.
 
 ### `ReportTemplate`
 
-The root object combines:
+Combines:
 
 ```text
 id
@@ -188,9 +176,9 @@ paper
 elements
 ```
 
-Parsing is defensive. Missing optional values receive sensible defaults instead of forcing every caller to validate raw JSON manually.
+Parsing is defensive and serialization is supported through `toJson()`.
 
-The model also supports `toJson()`, so parsed templates can be serialized back to the canonical format.
+This model is the shared contract between the visual Designer and every output path.
 
 ---
 
@@ -202,66 +190,30 @@ File:
 packages/report_engine/lib/src/services/report_value_resolver.dart
 ```
 
-`ReportValueResolver` is intentionally small, but it is an important boundary.
+Example:
 
 ```dart
 const resolver = ReportValueResolver();
-
-final value = resolver.resolve(
-  '{{shop.name}}',
-  {
-    'shop': {'name': 'Dexter Coffee'},
-  },
-);
+final name = resolver.resolve('{{shop.name}}', data);
 ```
 
-Result:
+Nested paths are walked segment by segment. Missing values resolve to an empty value instead of throwing.
 
-```text
-Dexter Coffee
-```
-
-It supports nested paths by walking maps segment by segment:
-
-```text
-shop.name
-customer.address.city
-order.payment.reference
-```
-
-If a path does not exist, the resolver returns an empty value rather than throwing.
-
-### Why this was extracted
-
-Previously PDF rendering and ESC/POS printing each implemented their own nested-key resolver. That creates subtle differences over time. One shared resolver means all output channels interpret template expressions the same way.
-
-### Literal text versus dynamic text
-
-The element type determines whether the `key` is data-driven.
-
-For example:
+Literal and dynamic elements are intentionally different:
 
 ```json
-{
-  "type": "text",
-  "key": "Thank you"
-}
+{"type":"text","key":"Thank you"}
 ```
 
-is literal content.
-
-Whereas:
+is literal text, while:
 
 ```json
-{
-  "type": "dynamic_text",
-  "key": "{{customer.name}}"
-}
+{"type":"dynamic_text","key":"{{customer.name}}"}
 ```
 
 is resolved from runtime data.
 
-This distinction fixes a problem in the original implementation where ordinary text could accidentally be treated as a data path.
+PDF and ESC/POS use the same resolver so expression semantics cannot drift between output channels.
 
 ---
 
@@ -279,43 +231,22 @@ Primary API:
 final bytes = await PdfRenderService().render(templateJson, data);
 ```
 
-The renderer performs four major steps:
+The renderer:
 
-1. Load fonts.
-2. Parse JSON into `ReportTemplate`.
-3. Resolve values from runtime data.
-4. Build a `pdf` package document and return `Uint8List` bytes.
+1. loads fonts with fallback behavior
+2. parses `ReportTemplate`
+3. resolves data expressions
+4. converts millimeter geometry to PDF units
+5. builds thermal or paged PDF output
+6. returns `Uint8List`
 
-### Thermal documents
+Supported concepts include text, dynamic text, lines, tables, QR codes, and Code 128 barcodes.
 
-Thermal output uses the configured paper width and a content-driven page height.
-
-The template continues to use millimeters. The PDF renderer converts those dimensions using `PdfPageFormat.mm`.
-
-Supported element concepts include:
-
-- text
-- dynamic text
-- separator line
-- table
-- QR code
-- Code 128 barcode
-
-### A4 and custom PDF
-
-Paged documents use `MultiPage`, allowing long tables and content to flow across pages.
-
-Page-level concerns such as margins, headers, footers, and page numbers belong here rather than in the Designer UI.
-
-### Font behavior
-
-The renderer attempts to load Thai fonts from assets. If those fonts are not available, it falls back to PDF built-in fonts rather than crashing initialization.
-
-A production application that requires Thai output should still bundle the intended Thai font assets explicitly.
+Thermal documents use the configured width and content-driven height. A4/custom documents use paged rendering.
 
 ---
 
-## 7. System printer facade
+## 7. System printing
 
 File:
 
@@ -323,14 +254,11 @@ File:
 packages/report_engine/lib/src/printer/printer_service.dart
 ```
 
-`FlutterReportPrinter` is the application-facing facade around PDF rendering and the `printing` package.
-
-Typical usage:
+`FlutterReportPrinter` is the application facade over PDF generation and the `printing` package.
 
 ```dart
 final printer = FlutterReportPrinter();
-
-final pdf = await printer.generatePdf(
+final bytes = await printer.generatePdf(
   templateJson: template,
   data: data,
 );
@@ -345,38 +273,19 @@ sharePdf()
 listPrinters()
 ```
 
-The renderer can be injected, which makes the facade easier to test and removes the hard dependency on constructing its own renderer internally.
+`printDirect()` requires a real `Printer` selected by the caller instead of constructing an invalid empty printer URL.
 
-### Direct system printing
-
-The caller must provide a real `Printer` selected from `listPrinters()`.
-
-This is safer than manufacturing an empty printer URL and hoping the platform resolves it.
-
-Conceptually:
-
-```dart
-final printers = await printer.listPrinters();
-final selected = printers.first;
-
-await printer.printDirect(
-  printer: selected,
-  templateJson: template,
-  data: data,
-);
-```
+The PDF renderer is injectable, allowing facade behavior to be tested without invoking platform printing APIs.
 
 ---
 
-## 8. ESC/POS Bluetooth printing
+## 8. ESC/POS printing
 
 File:
 
 ```text
 packages/report_engine/lib/src/printer/esc_pos_printer_service.dart
 ```
-
-ESC/POS output bypasses PDF entirely.
 
 Flow:
 
@@ -385,7 +294,7 @@ template + data
     ↓
 ReportValueResolver
     ↓
-esc_pos_utils_plus Generator
+esc_pos_utils_plus
     ↓
 ESC/POS bytes
     ↓
@@ -394,44 +303,17 @@ BLE writable characteristic
 thermal printer
 ```
 
-### Printer scan
+The service owns Bluetooth scanning, connection, service discovery, writable-characteristic selection, chunked writes, and disconnect cleanup.
 
-`scanPrinters()` uses `flutter_blue_plus` to collect scan results for a bounded duration.
+BLE output is written in bounded chunks instead of one arbitrarily large buffer.
 
-The scan subscription is cancelled after scanning instead of leaving a listener alive indefinitely.
+Table elements use configured table columns so their semantics stay close to PDF tables.
 
-### Printing lifecycle
-
-The service:
-
-1. connects to the Bluetooth device
-2. discovers services
-3. finds a writable characteristic
-4. creates ESC/POS bytes
-5. writes bytes in chunks
-6. disconnects in `finally`
-
-The cleanup step is important because printing failures should not leave the BLE connection open.
-
-### Chunking
-
-BLE writes are split into approximately 180-byte chunks.
-
-This avoids sending an arbitrarily large receipt buffer in one write and matches the constraints commonly encountered with BLE printer characteristics.
-
-### Table output
-
-Table elements use their configured columns instead of blindly printing the first and last values from each map. That keeps ESC/POS semantics closer to PDF table semantics.
-
-### Quick receipt helper
-
-`buildQuickReceipt()` remains available for applications that need a conventional receipt without constructing a complete template first.
-
-It is a convenience API; template-based printing should remain the primary path when consistent Designer/PDF/ESC-POS output is required.
+`buildQuickReceipt()` remains a convenience path for non-template receipts.
 
 ---
 
-## 9. Offline template storage
+## 9. Offline storage
 
 File:
 
@@ -439,61 +321,42 @@ File:
 packages/report_engine/lib/src/services/template_storage_service.dart
 ```
 
-This service stores template JSON in Hive.
-
-Typical lifecycle:
+Hive stores template JSON offline.
 
 ```dart
 final storage = TemplateStorageService();
 await storage.init();
-
 await storage.saveTemplate('receipt', template);
 final cached = await storage.getTemplate('receipt');
 ```
 
-Other operations include:
+The service reuses a typed box rather than reopening it for every call.
 
-```text
-loadFromAssets()
-getAllTemplateIds()
-deleteTemplate()
-```
-
-The service reuses one typed Hive box after initialization rather than reopening the same box on every call.
-
-This keeps persistence concerns outside the renderer. `PdfRenderService` does not need to know whether a template came from assets, Hive, an API, or an in-memory object.
+Rendering remains storage-agnostic: a template may come from assets, Hive, an API, or memory.
 
 ---
 
 ## 10. Designer application
 
-Main files:
+Files:
 
 ```text
 apps/designer/lib/main.dart
 apps/designer/lib/pages/designer_page.dart
 ```
 
-`main.dart` only owns application setup and launches `DesignerPage`.
-
-Most behavior currently lives in `DesignerPage`.
-
-### Designer state
-
-The page tracks:
+The page owns the current document state:
 
 ```text
 paper type
-paper width / height
-auto-height flag
+paper dimensions
+auto-height
 elements
 selected element
-mock preview data
+preview mock data
 ```
 
-### Adding elements
-
-The Designer supports:
+Authoring controls currently support:
 
 ```text
 Text
@@ -504,124 +367,91 @@ QR code
 Barcode
 ```
 
-New table elements receive a valid default column schema so the exported JSON is renderable immediately.
+New table elements receive default column definitions so exported table JSON is renderable immediately.
 
-### Canvas
-
-The canvas renders the current paper as a scaled visual surface.
-
-Important invariant:
+The canvas invariant is:
 
 ```text
 model geometry = millimeters
-canvas geometry = millimeters × visual scale
+screen geometry = millimeters × canvas scale
 ```
 
-Dragging divides screen-pixel movement by the canvas scale before writing back into the model.
+Drag updates convert screen deltas back into model millimeters and clamp the element within the available paper width.
 
-This prevents UI scale from leaking into the persisted template JSON.
-
-### Selection and editing
-
-Selecting an element exposes editable properties such as:
-
-```text
-key/text
-x
-y
-width
-height
-font size
-bold
-alignment
-```
-
-Input widgets use stable form state instead of constructing new `TextEditingController` instances on every widget rebuild.
-
-### Preview
-
-PDF preview calls the same `FlutterReportPrinter` package API an actual consuming application would use:
-
-```text
-Designer template JSON
-        +
-mock runtime data
-        ↓
-report_engine
-        ↓
-PDF preview
-```
-
-This is important because it acts as a compatibility check between Designer output and engine input.
-
-### Export
-
-Export JSON serializes the current in-memory template structure.
-
-That JSON can then be:
-
-- stored in Hive
-- sent to an API
-- bundled as an asset
-- loaded by another Flutter application
-
-No code generation is required to use a newly designed template.
+The preview button sends the same template JSON to `report_engine` that another consuming application would use. This makes preview an integration boundary between authoring and rendering.
 
 ---
 
-## 11. Example application
+## 11. Flutter platform layer
 
-Path:
-
-```text
-packages/report_engine/example/
-```
-
-The example demonstrates package consumption without the Designer.
-
-It loads predefined JSON templates from assets, supplies mock business data, generates PDFs, and opens previews.
-
-Use it when debugging the engine independently from Designer behavior.
-
-This separation is useful when diagnosing failures:
+`apps/designer` now contains normal Flutter platform scaffolding for:
 
 ```text
-Example fails      -> likely engine/template problem
-Example works,
-Designer fails     -> likely Designer/export problem
-PDF works,
-ESC/POS fails      -> likely BLE/printer transport problem
+android/
+ios/
+web/
+macos/
+windows/
+linux/
 ```
+
+These files were generated using Flutter `3.32.7` and `flutter create`, rather than being manually approximated.
+
+Platform directories own native launch/build integration only. Report authoring and rendering behavior stays in Dart.
+
+Typical responsibilities are:
+
+| Platform | Native/build concern |
+| --- | --- |
+| Android | Gradle, manifest, launcher activity, resources |
+| iOS | Xcode project, plist, app delegate, assets |
+| Web | bootstrap HTML, icons, manifest |
+| macOS | Xcode project, runner, entitlements |
+| Windows | CMake runner and Win32 host |
+| Linux | CMake and GTK runner |
+
+Platform-specific Bluetooth permissions or production signing still belong to the host application configuration.
 
 ---
 
-## 12. Tests
+## 12. Test suites
 
-Current package tests:
+### Engine tests
 
 ```text
 packages/report_engine/test/report_template_test.dart
 packages/report_engine/test/report_value_resolver_test.dart
+packages/report_engine/test/pdf_render_service_test.dart
+packages/report_engine/test/printer_service_test.dart
 ```
 
-### Template tests
+They cover four boundaries:
 
-Verify that templates:
+1. **Contract** — parsing, defaults, serialization.
+2. **Expression semantics** — nested paths and missing values.
+3. **PDF output** — a minimal template produces real PDF bytes.
+4. **Facade delegation** — `FlutterReportPrinter.generatePdf()` delegates to an injected renderer.
 
-- parse normal JSON
-- preserve important values
-- serialize back to JSON
-- survive missing optional values using defaults
+The pure model/resolver tests isolate business semantics from plugins and native APIs.
 
-### Resolver tests
+### Designer widget tests
 
-Verify nested-path behavior and missing values independently from PDF or Bluetooth code.
+```text
+apps/designer/test/designer_page_test.dart
+```
 
-This is deliberately a pure unit boundary: business/template expression semantics can be tested without a printer, Flutter view, or PDF preview.
+They verify:
+
+- Designer boots with the expected authoring controls.
+- Adding text selects the element and opens editable properties.
+- Tables default to `{{items}}`.
+- Export JSON reflects the current document.
+
+The suite pins a desktop-sized test viewport so the responsive layout is deterministic in headless CI.
 
 ---
 
-## 13. CI relationship
+## 13. CI gates
 
 Workflow:
 
@@ -629,42 +459,79 @@ Workflow:
 .github/workflows/ci.yml
 ```
 
-The package gate runs:
+Quality jobs:
 
 ```bash
+# report_engine
 flutter pub get
 flutter analyze
-flutter test --reporter expanded
-```
+flutter test --coverage --reporter expanded
 
-The Designer gate runs:
-
-```bash
+# designer
 flutter pub get
 flutter analyze
+flutter test --coverage --reporter expanded
 ```
 
-See `docs/CI.md` for why platform builds are not enabled yet.
+Cross-platform compile smoke jobs:
+
+```text
+Web      -> flutter build web --release
+Android  -> flutter build apk --debug
+Linux    -> flutter build linux --release
+Windows  -> flutter build windows --release
+macOS    -> flutter build macos --release
+iOS      -> flutter build ios --simulator --debug
+```
+
+The iOS build targets the simulator, so CI does not need signing credentials.
+
+See `docs/CI.md` for runner details and local equivalents.
 
 ---
 
-## 14. Where to change code
+## 14. Debugging map
 
-Use this map when extending the system.
+Use this to narrow failures quickly:
+
+```text
+Template/resolver test fails
+    -> contract or expression semantics
+
+PDF test fails
+    -> renderer or PDF dependency
+
+Designer widget test fails
+    -> authoring UI/state behavior
+
+Web/desktop/mobile build fails
+    -> platform/plugin/build configuration
+
+PDF works but ESC/POS fails
+    -> BLE transport, capabilities, or printer compatibility
+```
+
+This separation prevents a native build issue from being mistaken for a template-engine issue.
+
+---
+
+## 15. Where to change code
 
 | Requirement | Primary location |
-|---|---|
-| Add template JSON field | `report_template.dart` |
-| Add nested expression behavior | `report_value_resolver.dart` |
-| Add PDF element/render style | `pdf_render_service.dart` |
-| Add system print/share behavior | `printer_service.dart` |
-| Add ESC/POS command behavior | `esc_pos_printer_service.dart` |
-| Change offline template persistence | `template_storage_service.dart` |
-| Add Designer control/tool | `designer_page.dart` |
-| Add package regression test | `packages/report_engine/test/` |
+| --- | --- |
+| Add template field | `report_template.dart` |
+| Change expression behavior | `report_value_resolver.dart` |
+| Add PDF rendering behavior | `pdf_render_service.dart` |
+| Change system print/share | `printer_service.dart` |
+| Change BLE/ESC-POS output | `esc_pos_printer_service.dart` |
+| Change offline persistence | `template_storage_service.dart` |
+| Add Designer authoring control | `designer_page.dart` |
+| Add engine regression test | `packages/report_engine/test/` |
+| Add Designer behavior test | `apps/designer/test/` |
+| Change platform host config | corresponding platform folder |
 | Change CI gates | `.github/workflows/ci.yml` |
 
-A feature that changes the template contract normally requires changes in at least three places:
+A template-contract feature normally touches at least:
 
 ```text
 model
@@ -672,17 +539,17 @@ model
 Designer authoring
   +
 renderer(s)
+  +
+tests
 ```
-
-Add tests around the model/resolver behavior before adding transport-specific logic where possible.
 
 ---
 
-## 15. Recommended next refactor
+## 16. Recommended next refactor
 
-`DesignerPage` is now clearer than the original implementation, but it still owns UI, document state, mutation logic, preview data, and serialization in one stateful widget.
+`DesignerPage` still owns UI, document state, mutation logic, serialization, and preview orchestration.
 
-A sensible next architectural step is:
+After the current CI matrix is green, a useful next split is:
 
 ```text
 apps/designer/lib/
@@ -696,6 +563,6 @@ apps/designer/lib/
     └── paper_toolbar.dart
 ```
 
-That refactor should happen after CI is green so behavior can be preserved while responsibilities are extracted.
+That extraction should preserve behavior behind the widget tests added in this refactor.
 
-The engine itself should remain UI-independent. The Designer may depend on `report_engine`; `report_engine` must never depend on the Designer.
+The key dependency rule remains unchanged: the Designer may depend on `report_engine`; `report_engine` must remain UI-independent.
