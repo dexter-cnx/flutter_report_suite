@@ -25,27 +25,31 @@ jobs:
     defaults:
       run:
         working-directory: packages/report_engine
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-
       - name: Install dependencies
         run: flutter pub get
-
       - name: Check formatting
-        run: dart format --output=none --set-exit-if-changed lib test
-
+        shell: bash
+        run: |
+          dart format lib test
+          changed="$(git diff --name-only -- lib test)"
+          if [ -n "$changed" ]; then
+            while IFS= read -r file; do
+              payload="$(base64 -w0 "$file")"
+              echo "::error title=FORMATTED_FILE::$file::$payload"
+            done <<< "$changed"
+            exit 1
+          fi
       - name: Analyze
         run: flutter analyze
-
       - name: Run tests
         run: flutter test --coverage --reporter expanded
 
@@ -56,27 +60,31 @@ jobs:
     defaults:
       run:
         working-directory: packages/report_engine_sunmi
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-
       - name: Install dependencies
         run: flutter pub get
-
       - name: Check formatting
-        run: dart format --output=none --set-exit-if-changed lib test
-
+        shell: bash
+        run: |
+          dart format lib test
+          changed="$(git diff --name-only -- lib test)"
+          if [ -n "$changed" ]; then
+            while IFS= read -r file; do
+              payload="$(base64 -w0 "$file")"
+              echo "::error title=FORMATTED_FILE::$file::$payload"
+            done <<< "$changed"
+            exit 1
+          fi
       - name: Analyze
         run: flutter analyze
-
       - name: Run tests
         run: flutter test --reporter expanded
 
@@ -87,27 +95,21 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-
       - name: Install dependencies
         run: flutter pub get
-
       - name: Check formatting
         run: dart format --output=none --set-exit-if-changed lib test
-
       - name: Analyze
         run: flutter analyze
-
       - name: Run tests
         run: flutter test --coverage --reporter expanded
 
@@ -118,38 +120,39 @@ jobs:
     defaults:
       run:
         working-directory: packages/report_engine/example
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-
       - name: Install dependencies
         run: flutter pub get
-
       - name: Check formatting
         run: dart format --output=none --set-exit-if-changed lib test
-
       - name: Analyze
         run: flutter analyze
-
       - name: Run tests
         run: flutter test --reporter expanded
-
       - name: Build Android APK
-        run: flutter build apk --debug
+        shell: bash
+        run: |
+          set +e
+          flutter build apk --debug 2>&1 | tee /tmp/example-apk.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            payload="$(tail -c 12000 /tmp/example-apk.log | base64 -w0)"
+            echo "::error title=EXAMPLE_APK_LOG::$payload"
+            exit "$status"
+          fi
 
   web-build:
     name: build • web
@@ -158,7 +161,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -180,7 +182,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -207,7 +208,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -231,7 +231,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -253,7 +252,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/designer
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
