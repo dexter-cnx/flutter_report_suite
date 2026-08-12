@@ -68,14 +68,16 @@ class _DesignerPageState extends State<DesignerPage> {
   @override
   Widget build(BuildContext context) {
     final desktop = MediaQuery.sizeOf(context).width >=
-        DesignerLayout.collapsiblePanelBreakpoint;
+        DesignerLayout.compactDesktopBreakpoint;
 
     return KeyboardListener(
       focusNode: _keyboardFocus,
       autofocus: true,
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
-        body: desktop ? _desktopWorkspace() : _compactWorkspace(),
+        body: SafeArea(
+          child: desktop ? _desktopWorkspace() : _compactWorkspace(),
+        ),
       ),
     );
   }
