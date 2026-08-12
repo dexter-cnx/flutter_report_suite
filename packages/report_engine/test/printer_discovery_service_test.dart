@@ -25,7 +25,8 @@ void main() {
 
       final result = await service.discoverAll();
 
-      expect(result.map((printer) => printer.id), <String>['system:a', 'bluetooth:b']);
+      expect(result.map((printer) => printer.id),
+          <String>['system:a', 'bluetooth:b']);
     });
 
     test('deduplicates by deterministic id', () async {
