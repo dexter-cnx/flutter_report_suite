@@ -8,7 +8,7 @@ void main() {
       theme: DesignerTheme.light(),
       home: Scaffold(
         body: SizedBox(
-          width: DesignerLayout.inspectorWidth,
+          width: DesignerLayout.rightInspectorWidth,
           child: DesignerInspector(
             element: element,
             onContentSubmitted: (_) {},
