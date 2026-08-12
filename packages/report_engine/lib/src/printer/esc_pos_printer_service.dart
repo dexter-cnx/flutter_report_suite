@@ -39,23 +39,20 @@ class EscPosPrinterService {
     required Map<String, dynamic> data,
     PaperSize paperSize = PaperSize.mm80,
   }) async {
-    final template = ReportTemplate.fromJson(templateJson);
-    BluetoothCharacteristic? writeCharacteristic;
-
     try {
       await device.connect(timeout: const Duration(seconds: 10));
       final services = await device.discoverServices();
-      writeCharacteristic = _findWritableCharacteristic(services);
-      if (writeCharacteristic == null) {
+      final characteristic = _findWritableCharacteristic(services);
+      if (characteristic == null) {
         throw StateError('Bluetooth printer has no writable characteristic.');
       }
 
       final bytes = await _buildTemplateBytes(
-        template: template,
+        template: ReportTemplate.fromJson(templateJson),
         data: data,
         paperSize: paperSize,
       );
-      await _writeChunks(writeCharacteristic, bytes);
+      await _writeChunks(characteristic, bytes);
     } finally {
       try {
         await device.disconnect();
@@ -120,7 +117,8 @@ class EscPosPrinterService {
         height: PosTextSize.size2,
       ),
     ));
-    bytes.addAll(generator.qrcode(data['orderId']?.toString() ?? ''));
+    final orderId = data['orderId']?.toString() ?? '';
+    if (orderId.isNotEmpty) bytes.addAll(generator.qrcode(orderId));
     bytes.addAll(generator.text(
       data['note']?.toString() ?? 'ขอบคุณครับ',
       styles: const PosStyles(align: PosAlign.center),
@@ -157,38 +155,41 @@ class EscPosPrinterService {
           ? element.key ?? ''
           : _resolver.resolve(element.key, data);
       final text = value.toString();
-      final style = element.style;
       final styles = PosStyles(
-        align: _posAlign(style['align']?.toString()),
-        bold: style['bold'] == true,
+        align: _posAlign(element.style['align']?.toString()),
+        bold: element.style['bold'] == true,
       );
 
-      switch (element.type) {
-        case 'line':
-          bytes.addAll(generator.hr());
-        case 'qrcode':
-          if (text.isNotEmpty) bytes.addAll(generator.qrcode(text));
-        case 'barcode':
-          if (text.isNotEmpty) {
-            bytes.addAll(generator.barcode(Barcode.code128(text)));
+      if (element.type == 'line') {
+        bytes.addAll(generator.hr());
+        continue;
+      }
+      if (element.type == 'qrcode') {
+        if (text.isNotEmpty) bytes.addAll(generator.qrcode(text));
+        continue;
+      }
+      if (element.type == 'barcode') {
+        if (text.isNotEmpty) {
+          bytes.addAll(generator.barcode(Barcode.code128(text)));
+        }
+        continue;
+      }
+      if (element.type == 'table') {
+        if (value is List) {
+          for (final row in value) {
+            if (row is! Map) continue;
+            final cells = element.columns.isEmpty
+                ? row.values.map((cell) => cell.toString()).toList()
+                : element.columns
+                    .map((column) => (row[column['key']] ?? '').toString())
+                    .toList();
+            bytes.addAll(generator.text(cells.join('  '), styles: styles));
           }
-        case 'table':
-          if (value is List) {
-            for (final row in value) {
-              if (row is! Map) continue;
-              final cells = element.columns.isEmpty
-                  ? row.values.map((cell) => cell.toString()).toList()
-                  : element.columns
-                      .map((column) =>
-                          (row[column['key']] ?? '').toString())
-                      .toList();
-              bytes.addAll(generator.text(cells.join('  '), styles: styles));
-            }
-          }
-        default:
-          if (text.isNotEmpty) {
-            bytes.addAll(generator.text(text, styles: styles));
-          }
+        }
+        continue;
+      }
+      if (text.isNotEmpty) {
+        bytes.addAll(generator.text(text, styles: styles));
       }
     }
 
@@ -202,7 +203,7 @@ class EscPosPrinterService {
   ) async {
     const chunkSize = 180;
     for (var offset = 0; offset < bytes.length; offset += chunkSize) {
-      final end = (offset + chunkSize).clamp(0, bytes.length);
+      final end = (offset + chunkSize).clamp(0, bytes.length).toInt();
       await characteristic.write(
         Uint8List.fromList(bytes.sublist(offset, end)),
         withoutResponse: characteristic.properties.writeWithoutResponse,
