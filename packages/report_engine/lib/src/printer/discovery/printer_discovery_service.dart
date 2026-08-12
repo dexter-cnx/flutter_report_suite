@@ -9,11 +9,14 @@ class PrinterDiscoveryService {
 
   factory PrinterDiscoveryService.standard({
     Duration bluetoothTimeout = const Duration(seconds: 5),
+    List<PrinterDiscoverySource> additionalSources =
+        const <PrinterDiscoverySource>[],
   }) {
     return PrinterDiscoveryService(
       sources: <PrinterDiscoverySource>[
         const SystemPrinterDiscovery(),
         BluetoothPrinterDiscovery(timeout: bluetoothTimeout),
+        ...additionalSources,
       ],
     );
   }

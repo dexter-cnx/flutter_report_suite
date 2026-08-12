@@ -25,17 +25,20 @@ void main() {
       expect(printers.single.metadata['version'], '1.2.3');
     });
 
-    test('delegates cut and cash drawer operations', () async {
+    test('delegates cut drawer and service rebind operations', () async {
       final bridge = _FakeBridge();
       final adapter = SunmiPrinterAdapter(bridge: bridge);
 
       await adapter.cutPaper();
       await adapter.openCashDrawer();
       final isOpen = await adapter.isCashDrawerOpen();
+      final rebound = await adapter.rebindPrinter();
 
       expect(bridge.cutCalls, 1);
       expect(bridge.drawerCalls, 1);
+      expect(bridge.rebindCalls, 1);
       expect(isOpen, isTrue);
+      expect(rebound, isTrue);
     });
   });
 }
@@ -44,6 +47,7 @@ class _FakeBridge implements SunmiPrinterBridge {
   List<int>? lastBytes;
   int cutCalls = 0;
   int drawerCalls = 0;
+  int rebindCalls = 0;
 
   @override
   Future<String?> printEscPos(List<int> bytes) async {
@@ -74,4 +78,10 @@ class _FakeBridge implements SunmiPrinterBridge {
 
   @override
   Future<String?> getVersion() async => '1.2.3';
+
+  @override
+  Future<bool> rebindPrinter() async {
+    rebindCalls++;
+    return true;
+  }
 }

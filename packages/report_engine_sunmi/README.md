@@ -16,6 +16,16 @@ final bytes = await renderer.renderQuickReceipt(
 await sunmi.send(bytes);
 ```
 
-The adapter also exposes `cutPaper()` and `openCashDrawer()` when supported by the attached Sunmi hardware. Formal capability interfaces remain part of Phase 3 Task 12.
+Sunmi discovery can participate in the unified discovery service without coupling the core package to the Android plugin:
+
+```dart
+final sunmi = SunmiPrinterAdapter();
+final discovery = PrinterDiscoveryService.standard(
+  additionalSources: <PrinterDiscoverySource>[sunmi],
+);
+final printers = await discovery.discoverAll();
+```
+
+The adapter also exposes `cutPaper()`, `openCashDrawer()`, and `rebindPrinter()`. Formal capability interfaces remain part of Phase 3 Task 12.
 
 Physical device validation is required before claiming compatibility with a specific Sunmi model.

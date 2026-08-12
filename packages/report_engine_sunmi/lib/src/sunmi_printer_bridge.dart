@@ -8,6 +8,7 @@ abstract interface class SunmiPrinterBridge {
   Future<String?> getId();
   Future<String?> getType();
   Future<String?> getVersion();
+  Future<bool> rebindPrinter();
 }
 
 class PluginSunmiPrinterBridge implements SunmiPrinterBridge {
@@ -36,4 +37,7 @@ class PluginSunmiPrinterBridge implements SunmiPrinterBridge {
 
   @override
   Future<String?> getVersion() => _printer.getVersion();
+
+  @override
+  Future<bool> rebindPrinter() => _printer.rebindPrinter();
 }
