@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
@@ -52,8 +53,11 @@ class FlutterEscPosRasterizer implements EscPosRasterizer {
 
     await _ensureFontsLoaded();
 
-    final width = _paperWidthDots(paperSize);
+    final width = paperSize.width;
     final contentWidth = (width - (horizontalPadding * 2)).toDouble();
+    if (contentWidth <= 0) {
+      throw StateError('Raster horizontal padding exceeds paper width.');
+    }
     final painter = TextPainter(
       text: TextSpan(
         text: text,
@@ -92,7 +96,7 @@ class FlutterEscPosRasterizer implements EscPosRasterizer {
     }
 
     return _toGsV0(
-      data.buffer.asUint8List(),
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
       width: width,
       height: height,
     );
@@ -151,11 +155,6 @@ class FlutterEscPosRasterizer implements EscPosRasterizer {
       }
     }
     return output;
-  }
-
-  int _paperWidthDots(PaperSize paperSize) {
-    if (paperSize == PaperSize.mm58) return 384;
-    return 576;
   }
 
   TextAlign _textAlign(PosAlign align) {
