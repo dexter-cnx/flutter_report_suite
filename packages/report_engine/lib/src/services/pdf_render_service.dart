@@ -199,6 +199,17 @@ class PdfRenderService {
           .toList(growable: false);
     }).toList(growable: false);
 
+    final columnWidths = <int, pw.TableColumnWidth>{};
+    final cellAlignments = <int, pw.Alignment>{};
+    for (var index = 0; index < element.columns.length; index++) {
+      final column = element.columns[index];
+      final width = _double(column['width'], 1);
+      columnWidths[index] = pw.FlexColumnWidth(width > 0 ? width : 1);
+      cellAlignments[index] = _alignment(
+        (column['alignment'] ?? column['align'])?.toString(),
+      );
+    }
+
     return pw.TableHelper.fromTextArray(
       headers: element.columns
           .map((column) => column['label']?.toString() ?? '')
@@ -207,6 +218,8 @@ class PdfRenderService {
       headerStyle: _textStyle(fontSize: fontSize, bold: true),
       cellStyle: _textStyle(fontSize: fontSize),
       cellAlignment: pw.Alignment.centerLeft,
+      columnWidths: columnWidths,
+      cellAlignments: cellAlignments,
     );
   }
 
