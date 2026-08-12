@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:report_engine/report_engine.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('EscPosPrinterService hardware capabilities', () {
     test('rejects cut request when no cutter capability is supplied', () async {
       final transport = _FakeTransport();
