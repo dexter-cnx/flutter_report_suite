@@ -1,7 +1,14 @@
 name: report_engine
-description: Offline-first Flutter report engine for PDF, A4, thermal, and ESC/POS output.
+description: Offline-first Flutter report engine for PDF, A4, thermal, and ESC/POS output with Thai support.
 version: 1.0.0
-publish_to: none
+repository: https://github.com/dexter-cnx/flutter_report_suite
+issue_tracker: https://github.com/dexter-cnx/flutter_report_suite/issues
+topics:
+  - flutter
+  - pdf
+  - esc-pos
+  - printing
+  - reports
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
