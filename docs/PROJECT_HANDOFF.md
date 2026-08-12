@@ -551,39 +551,81 @@ NEEDS PHYSICAL VERIFICATION
 
 # PHASE 5 — RELEASE
 
-**Status: ⏭️ NEXT — START AFTER PR #8 IS MERGED TO `main`**
+**Status: ✅ MERGED / COMPLETE — 2026-08-12**
+
+Branch:
+
+```text
+agent/phase-5-release
+```
+
+Pull request:
+
+```text
+PR #9 — Phase 5 release readiness and GitHub Pages
+```
+
+Merge commit:
+
+```text
+be3378a69794732e12935ea594aa09a4a9b9e2e4
+```
+
+Validation:
+
+- PR CI run #68: ✅ SUCCESS
+- post-merge CI run #69 / run id `31591471768`: ✅ SUCCESS
+- GitHub Pages workflow run #1: ✅ SUCCESS
+- live Pages smoke test: ✅ PASS
 
 ## 16. Prepare `report_engine` for pub.dev
 
-Review publication metadata and artifacts:
+**Status: ✅ COMPLETED**
 
-- description
-- repository
-- homepage/issue tracker where appropriate
-- topics
-- license
-- README
+Completed:
+
+- description / repository / issue tracker metadata
+- pub.dev topics
+- package-level license
+- package README
 - CHANGELOG
-- publish dry-run
-- exclusions
+- publication artifact review
+- `flutter pub publish --dry-run` as a CI gate
 
-`publish_to: none` must remain until the package is actually ready for publication.
+Publication strategy:
 
-The companion `report_engine_sunmi` publication strategy must also be decided because it currently depends on core through a monorepo path dependency.
+- `report_engine` — publish-ready `1.0.0` candidate
+- `report_engine_sunmi` — remains unpublished for this release cycle
+
+Dry-run result:
+
+```text
+report_engine • format + analyze + test + publish dry-run — ✅ PASS
+```
 
 ## 17. Designer Web deployment
 
-Add Firebase Hosting configuration for `apps/designer` while keeping application runtime backend-free.
+**Status: ✅ COMPLETED**
 
-Verify:
+GitHub Pages replaced the earlier Firebase Hosting proposal because Designer is a static, backend-free Flutter Web application.
 
-- web base path
-- SPA fallback
-- caching strategy
-- deployment instructions
-- successful Web build
+Deployment target:
 
-Do not claim deployment success without valid credentials and an actual deployment.
+```text
+https://dexter-cnx.github.io/flutter_report_suite/
+```
+
+Implemented and validated:
+
+- dedicated `.github/workflows/pages.yml`
+- GitHub Pages publishing source: GitHub Actions
+- build base href `/flutter_report_suite/`
+- Web metadata updates
+- workflow build: ✅ PASS
+- workflow deploy: ✅ PASS
+- live site smoke test: ✅ PASS
+
+No SPA rewrite workaround is required by the current Designer navigation because the app currently uses `MaterialApp(home: ...)` rather than path-based deep-link routing.
 
 ---
 
@@ -603,7 +645,9 @@ Before declaring v1.0.0 production-ready:
 - [x] Designer macOS build passes
 - [x] Designer iOS simulator build passes
 - [x] Example Android APK builds
-- [ ] publish dry-run passes
+- [x] publish dry-run passes
+- [x] GitHub Pages deployment passes
+- [x] GitHub Pages live smoke passes
 - [x] bundled Thai PDF rendering implemented and tested
 - [x] ESC/POS Thai encoding tests pass
 - [x] save/load round trip passes
@@ -625,9 +669,9 @@ until tested on actual devices.
 
 # Current next action
 
-1. Merge **PR #8** into `main`.
-2. Pull/update `main` after the merge.
-3. Create a new Phase 5 branch from updated `main`.
-4. Start **Task 16 — pub.dev readiness**.
-5. Continue with **Task 17 — Designer Web deployment** after publication readiness is stable.
-6. Do not start Phase 5 work on `agent/phase-4-hardening`.
+1. Create and push the `v1.0.0` tag.
+2. Create the GitHub Release for `v1.0.0`.
+3. Publish `packages/report_engine` to pub.dev.
+4. Keep `report_engine_sunmi` unpublished until its own release decision and dependency strategy are approved.
+5. Record physical printer validation evidence when hardware becomes available.
+6. Treat Designer visual/UX modernization as post-v1 work so it does not block the validated release baseline.
