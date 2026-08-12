@@ -131,43 +131,45 @@ class _DesignerPageState extends State<DesignerPage> {
         ),
       );
 
-  Widget _leftPanel({bool expandWidth = false}) => Container(
+  Widget _leftPanel({bool expandWidth = false}) => SizedBox(
         width: expandWidth ? null : 180,
-        color: Colors.grey[100],
-        child: ListView(
-          children: [
-            const ListTile(
-              title: Text(
-                'Add Element',
-                style: TextStyle(fontWeight: FontWeight.bold),
+        child: Material(
+          color: Colors.grey.shade100,
+          child: ListView(
+            children: [
+              const ListTile(
+                title: Text(
+                  'Add Element',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-            _addButton('Text', Icons.text_fields, 'text'),
-            _addButton('Dynamic {{field}}', Icons.data_object, 'dynamic_text'),
-            _addButton('Line', Icons.horizontal_rule, 'line'),
-            _addButton('Table {{items}}', Icons.table_chart, 'table'),
-            _addButton('QR Code', Icons.qr_code, 'qrcode'),
-            _addButton('Barcode', Icons.view_week, 'barcode'),
-            const Divider(),
-            ListTile(
-              dense: true,
-              title: Text('Paper: ${_widthMm.toStringAsFixed(0)} mm'),
-            ),
-            Slider(
-              value: _widthMm.clamp(48, 210).toDouble(),
-              min: 48,
-              max: 210,
-              divisions: 162,
-              label: '${_widthMm.toStringAsFixed(0)} mm',
-              onChanged: (value) => setState(() => _widthMm = value),
-            ),
-            SwitchListTile(
-              dense: true,
-              title: const Text('Auto Height'),
-              value: _autoHeight,
-              onChanged: (value) => setState(() => _autoHeight = value),
-            ),
-          ],
+              _addButton('Text', Icons.text_fields, 'text'),
+              _addButton('Dynamic {{field}}', Icons.data_object, 'dynamic_text'),
+              _addButton('Line', Icons.horizontal_rule, 'line'),
+              _addButton('Table {{items}}', Icons.table_chart, 'table'),
+              _addButton('QR Code', Icons.qr_code, 'qrcode'),
+              _addButton('Barcode', Icons.view_week, 'barcode'),
+              const Divider(),
+              ListTile(
+                dense: true,
+                title: Text('Paper: ${_widthMm.toStringAsFixed(0)} mm'),
+              ),
+              Slider(
+                value: _widthMm.clamp(48, 210).toDouble(),
+                min: 48,
+                max: 210,
+                divisions: 162,
+                label: '${_widthMm.toStringAsFixed(0)} mm',
+                onChanged: (value) => setState(() => _widthMm = value),
+              ),
+              SwitchListTile(
+                dense: true,
+                title: const Text('Auto Height'),
+                value: _autoHeight,
+                onChanged: (value) => setState(() => _autoHeight = value),
+              ),
+            ],
+          ),
         ),
       );
 
@@ -277,86 +279,99 @@ class _DesignerPageState extends State<DesignerPage> {
   Widget _rightPanel({bool expandWidth = false}) {
     final selected = _selectedElement;
     if (selected == null) {
-      return Container(
+      return SizedBox(
         width: expandWidth ? null : 280,
-        color: Colors.grey[50],
-        child: const Center(child: Text('Select an element to edit')),
+        child: Material(
+          color: Colors.grey.shade50,
+          child: const Center(child: Text('Select an element to edit')),
+        ),
       );
     }
 
     final style = _style(selected);
-    return Container(
+    return SizedBox(
       width: expandWidth ? null : 280,
-      color: Colors.grey[50],
-      padding: const EdgeInsets.all(12),
-      child: ListView(
-        children: [
-          const Text('Properties', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          TextFormField(
-            key: ValueKey('key-${selected['id']}-${selected['key']}'),
-            initialValue: selected['key']?.toString() ?? '',
-            decoration: const InputDecoration(labelText: 'Key / Text'),
-            onFieldSubmitted: (value) => setState(() => selected['key'] = value),
-          ),
-          const SizedBox(height: 12),
-          Row(
+      child: Material(
+        color: Colors.grey.shade50,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: ListView(
             children: [
-              Expanded(child: _numberField(selected, 'x', 'X')),
-              const SizedBox(width: 8),
-              Expanded(child: _numberField(selected, 'y', 'Y')),
-            ],
-          ),
-          Row(
-            children: [
-              Expanded(child: _numberField(selected, 'w', 'W')),
-              const SizedBox(width: 8),
-              Expanded(child: _numberField(selected, 'h', 'H')),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Text('Font'),
-              Expanded(
-                child: Slider(
-                  value: _number(style['fontSize'], fallback: 10)
-                      .clamp(6, 30)
-                      .toDouble(),
-                  min: 6,
-                  max: 30,
-                  onChanged: (value) =>
-                      setState(() => style['fontSize'] = value),
-                ),
+              const Text(
+                'Properties',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              Text(_number(style['fontSize'], fallback: 10).toStringAsFixed(0)),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: ValueKey('key-${selected['id']}-${selected['key']}'),
+                initialValue: selected['key']?.toString() ?? '',
+                decoration: const InputDecoration(labelText: 'Key / Text'),
+                onFieldSubmitted: (value) =>
+                    setState(() => selected['key'] = value),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: _numberField(selected, 'x', 'X')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _numberField(selected, 'y', 'Y')),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(child: _numberField(selected, 'w', 'W')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _numberField(selected, 'h', 'H')),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text('Font'),
+                  Expanded(
+                    child: Slider(
+                      value: _number(style['fontSize'], fallback: 10)
+                          .clamp(6, 30)
+                          .toDouble(),
+                      min: 6,
+                      max: 30,
+                      onChanged: (value) =>
+                          setState(() => style['fontSize'] = value),
+                    ),
+                  ),
+                  Text(
+                    _number(style['fontSize'], fallback: 10)
+                        .toStringAsFixed(0),
+                  ),
+                ],
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Bold'),
+                value: style['bold'] == true,
+                onChanged: (value) =>
+                    setState(() => style['bold'] = value == true),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: style['align']?.toString() ?? 'left',
+                decoration: const InputDecoration(labelText: 'Alignment'),
+                items: const [
+                  DropdownMenuItem(value: 'left', child: Text('Left')),
+                  DropdownMenuItem(value: 'center', child: Text('Center')),
+                  DropdownMenuItem(value: 'right', child: Text('Right')),
+                ],
+                onChanged: (value) =>
+                    setState(() => style['align'] = value ?? 'left'),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.tonalIcon(
+                icon: const Icon(Icons.delete),
+                label: const Text('Delete element'),
+                onPressed: _deleteSelected,
+              ),
             ],
           ),
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Bold'),
-            value: style['bold'] == true,
-            onChanged: (value) =>
-                setState(() => style['bold'] = value == true),
-          ),
-          DropdownButtonFormField<String>(
-            value: style['align']?.toString() ?? 'left',
-            decoration: const InputDecoration(labelText: 'Alignment'),
-            items: const [
-              DropdownMenuItem(value: 'left', child: Text('Left')),
-              DropdownMenuItem(value: 'center', child: Text('Center')),
-              DropdownMenuItem(value: 'right', child: Text('Right')),
-            ],
-            onChanged: (value) =>
-                setState(() => style['align'] = value ?? 'left'),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.tonalIcon(
-            icon: const Icon(Icons.delete),
-            label: const Text('Delete element'),
-            onPressed: _deleteSelected,
-          ),
-        ],
+        ),
       ),
     );
   }
