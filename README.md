@@ -149,7 +149,7 @@ Selection      1 px primary border
 Resize handle  8 px
 ```
 
-The live `DesignerPage` now uses the shared shell/canvas primitives rather than duplicating these visual contracts inline:
+The live `DesignerPage` uses the shared shell/canvas primitives rather than duplicating these visual contracts inline:
 
 ```text
 DesignerAppShell
@@ -164,7 +164,15 @@ DesignerAppShell
 └── DesignerStatusBar / ZoomControl
 ```
 
-For widths below 1280 px the fixed desktop side-panel shell is not used; the canvas receives priority and the panels move to the compact layout. The workspace is wrapped in `SafeArea` so mobile status bars/notches do not overlap the custom toolbar.
+Responsive behavior is canvas-first:
+
+```text
+>= 1280 px      fixed desktop Elements + Inspector shell
+1024–1279 px    Elements collapsed by default and toggleable from toolbar
+< 1024 px       compact layout with canvas above editing panels
+```
+
+The workspace is wrapped in `SafeArea` so mobile status bars and notches do not overlap the custom toolbar.
 
 ## Template model
 
@@ -297,7 +305,7 @@ macOS release
 iOS simulator
 ```
 
-The Designer CI job also uploads formatted source/test artifacts when format validation fails, making formatter-only failures reproducible instead of requiring manual guesswork.
+The Designer CI job uploads a `formatted-designer` artifact when format validation fails, making formatter-only failures reproducible with the exact Flutter/Dart version used by CI.
 
 A phase is not considered complete until its relevant format, analyze, test, and build gates pass.
 
