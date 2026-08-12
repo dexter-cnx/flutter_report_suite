@@ -4,38 +4,38 @@ Repository: `dexter-cnx/flutter_report_suite`
 
 Reference Flutter toolchain: **Flutter 3.32.7**
 
+Last updated: **2026-08-12**
+
 ## Mission
 
-Take the current monorepo to a production-ready **v1.0.0** while preserving its offline-first architecture.
+Take the monorepo to a production-ready **v1.0.0** while preserving its offline-first architecture.
 
 Current structure:
 
-- `packages/report_engine` — PDF, thermal, ESC/POS, Hive/template storage
+```text
+flutter_report_suite/
+├── apps/designer
+├── packages/report_engine
+├── packages/report_engine_sunmi
+└── docs
+```
+
 - `apps/designer` — drag/drop report designer
-- existing CI — analyze/test coverage plus compile-level validation for Designer on Android, iOS simulator, Web, Linux, macOS, and Windows
+- `packages/report_engine` — template model, PDF, ESC/POS, printer discovery, Hive/template storage
+- `packages/report_engine_sunmi` — optional Android-only Sunmi adapter
 
-Known gaps:
+## Operating rules
 
-- real Thai ESC/POS handling
-- stronger printer abstraction
-- release hardening and publish/deploy preparation
-
-## Operating Rules
-
-Before changing code:
-
-1. Inspect the current repository and existing implementation.
-2. Do not blindly recreate or overwrite existing files.
-3. Preserve public APIs unless change is necessary.
-4. Prefer incremental changes over broad rewrites.
-5. Keep runtime fully offline-first; no backend is required.
+1. Inspect existing code before changing it.
+2. Preserve public APIs unless a change is necessary for correctness.
+3. Prefer incremental changes over broad rewrites.
+4. Keep runtime offline-first; no backend is required.
+5. Never weaken tests just to make CI pass.
 6. Do not claim physical printer compatibility without physical evidence.
-7. Commit after each roadmap task only when its validation passes.
-8. If a roadmap instruction conflicts with the existing architecture, implement the architectural equivalent and document the deviation.
-9. Never weaken tests simply to make CI pass.
-10. Reuse dependencies already present in the repo instead of adding duplicates.
-11. Treat the existing CI platform build jobs as regression gates; do not remove native Designer build coverage merely to satisfy a narrower roadmap checklist.
-12. **Phase boundary rule:** complete validation, open a PR, resolve review/CI feedback, and merge the current phase into `main` before creating or starting the next phase branch.
+7. Hardware-dependent functionality remains `NEEDS PHYSICAL VERIFICATION` until tested on real hardware.
+8. Complete validation, PR review, CI, and merge for one phase before starting the next phase branch.
+9. Preserve the existing Designer native build matrix.
+10. Keep PDF rendering, ESC/POS rendering, transport, discovery, and physical hardware capabilities as separate responsibilities.
 
 ---
 
@@ -43,42 +43,19 @@ Before changing code:
 
 **Status: ✅ COMPLETED — 2026-08-12**
 
-The baseline repository audit is complete. Repository structure, branch/working state, root configuration, `packages/report_engine`, `apps/designer`, existing tests, `.github/workflows`, and Designer platform folders were reviewed before Phase 1 work. Existing compatibility issues found during the baseline were handled separately from roadmap regressions.
-
-Completed audit scope:
-
-- inspect repository tree
-- check current branch and working tree
-- inspect root configuration
-- inspect `packages/report_engine`
-- inspect `apps/designer`
-- inspect existing tests
-- inspect `.github/workflows`
-- inspect platform folders
-
-Baseline commands were run where applicable:
-
-```bash
-flutter pub get
-flutter analyze
-flutter test
-```
-
-Existing failures were recorded separately from regressions introduced by roadmap work.
-
-PRE-FLIGHT is complete; Phase 1 work may proceed.
+Repository structure, CI, platform folders, `report_engine`, Designer, tests, assets, and existing implementation were audited before roadmap work.
 
 ---
 
 # PHASE 1 — FOUNDATION
 
-## 1. Verify and preserve runnable Designer platforms
+**Status: ✅ MERGED / COMPLETE**
 
-**Status: ✅ COMPLETED — 2026-08-12**
+## 1. Runnable Designer platforms
 
-Maintainer-confirmed verification passed for the existing Designer platform scaffolding. The Web, Android, iOS, Linux, macOS, and Windows projects were preserved rather than regenerated, and the existing six-platform CI build matrix remains a required regression gate.
+**Status: ✅ COMPLETED**
 
-The current repository already contains Flutter 3.32.7 platform scaffolding for `apps/designer` on:
+Existing Flutter platform projects were preserved and validated for:
 
 - Web
 - Android
@@ -87,240 +64,68 @@ The current repository already contains Flutter 3.32.7 platform scaffolding for 
 - macOS
 - Windows
 
-Treat this task as **verification/migration of the existing six-platform setup**, not platform restoration.
-
-Requirements:
-
-- inspect each existing platform project before changing it
-- preserve application identifiers, signing/configuration placeholders, generated-project customizations, and plugin integration
-- use `flutter create` only if a platform folder is genuinely missing or structurally broken
-- if regeneration is required, diff generated output before accepting it and avoid overwriting app-specific configuration
-- keep all six platforms represented in CI build/smoke coverage
-
-Validate at minimum:
-
-```bash
-flutter pub get
-flutter analyze
-flutter test
-flutter build web --release
-```
-
-Also preserve or run the platform-specific compile gates already represented in CI:
-
-- Android APK
-- Linux desktop
-- Windows desktop
-- macOS desktop
-- iOS simulator
-
-Commit:
-
-```text
-chore(designer): verify Flutter platform projects
-```
+The six-platform CI build matrix remains a required regression gate.
 
 ## 2. Production Thai PDF fonts
 
-**Status: ✅ COMPLETED — 2026-08-12**
+**Status: ✅ COMPLETED**
 
-Completed on branch `agent/phase-1-foundation-tasks-2-4`:
+Implemented:
 
-- registered `assets/fonts/` in `report_engine`
-- bundled `NotoSansThai-Regular.ttf` and `NotoSansThai-Bold.ttf`
-- added the SIL Open Font License and font integration notes
-- changed `PdfRenderService` to resolve `packages/report_engine/assets/fonts/...` before the legacy app-relative path
-- cached loaded regular/bold `pw.Font` instances per renderer
-- standardized expected filenames to `NotoSansThai-Regular.ttf` and `NotoSansThai-Bold.ttf`
-- added Thai rendering coverage for `กุ้ง`, `น้ำ`, `สำนักงาน`, and mixed Thai/English/numeric content
-- added a Thai PDF visual-inspection fixture
-- validated package analyze/tests and consuming example app behavior
-
-Bundle an open-license Thai font suitable for redistribution.
-
-Preferred:
-
-- Noto Sans Thai Regular
-- Noto Sans Thai Bold
-
-Store under:
-
-```text
-packages/report_engine/assets/fonts/
-```
-
-Requirements:
-
-- register fonts/assets correctly in `packages/report_engine/pubspec.yaml`
-- update `PdfRenderService` to use the bundled Thai font
-- resolve Flutter package asset paths correctly when consumed from another app
-- do not assume an application-relative asset path
-- cache loaded font data during rendering where practical
-- use fallback fonts only when bundled fonts cannot be loaded
-
-Test strings:
-
-- `กุ้ง`
-- `น้ำ`
-- `สำนักงาน`
-- mixed Thai / English / numeric content
-
-Validation must establish more than `bytes.isNotEmpty`.
-
-Create a Thai PDF fixture suitable for visual inspection.
-
-Commit:
-
-```text
-feat(pdf): bundle Thai fonts and support Thai rendering
-```
+- bundled `NotoSansThai-Regular.ttf`
+- bundled `NotoSansThai-Bold.ttf`
+- package-aware asset loading
+- cached PDF font loading
+- Thai PDF tests including `กุ้ง`, `น้ำ`, `สำนักงาน`, and mixed Thai/English/numeric content
+- font license/integration documentation
 
 ## 3. Example application
 
-**Status: ✅ COMPLETED — 2026-08-12**
+**Status: ✅ COMPLETED**
 
-Completed on branch `agent/phase-1-foundation-tasks-2-4`:
-
-- retained the existing `FlutterReportPrinter` public facade demonstration
-- retained Thermal 80mm and Thermal 58mm preview flows
-- expanded the A4 sample to generate 30 complete invoice rows so page-breaking can be exercised
-- populated the A4 template keys for invoice/company/customer/due-date and row number/total fields
-- exposed Thai PDF preview/share through `PdfPreview`
-- added ESC/POS quick-receipt generation with graceful error handling
-- retained system-printer discovery
-- added a simple template JSON export/copy demonstration
-- clearly labels physical Thai ESC/POS output as hardware-dependent
-- provisioned `packages/report_engine/example/android/`
-- aligned the Android scaffold with the Flutter 3.32.7 baseline: AGP 8.7.3, Kotlin 2.1.0, Gradle 8.12
-- validated `flutter pub get`, `flutter analyze`, `flutter test`, and `flutter build apk --debug`
-
-Create or complete:
-
-```text
-packages/report_engine/example/
-```
-
-The example must demonstrate the public API of `report_engine`.
-
-Before making Android APK build a CI/release gate, ensure the example has valid Flutter platform scaffolding. At minimum, provision and validate:
-
-```text
-packages/report_engine/example/android/
-```
-
-Use `flutter create` from the example directory only for missing example platform scaffolding and preserve the existing `lib/`, assets, and package configuration.
-
-Required examples:
+`packages/report_engine/example` demonstrates:
 
 - Thermal 80mm preview
 - Thermal 58mm preview
-- A4 invoice with at least 25 rows and page breaking
+- A4 invoice with multi-page rows
 - PDF preview/share
-- printer discovery
-- ESC/POS quick receipt
+- system-printer listing
+- ESC/POS quick receipt generation
 - Thai PDF
-- Thai ESC/POS when supported
-- template import/export where applicable
+- Thai ESC/POS raster example
+- template JSON export/copy
 
-Printer actions must degrade gracefully on unsupported platforms.
-
-Prefer a public facade such as:
-
-```dart
-final printer = FlutterReportPrinter();
-
-final pdf = await printer.generatePdf(
-  templateJson: template,
-  data: data,
-);
-```
-
-If the current API differs, preserve compatibility or add a documented facade.
-
-Validation must include a successful example Android compile before Task 13 relies on it:
-
-```bash
-cd packages/report_engine/example
-flutter pub get
-flutter analyze
-flutter build apk --debug
-```
-
-Commit:
-
-```text
-feat(example): add report engine showcase app
-```
+Android example scaffolding is present and the APK debug build has been validated.
 
 ## 4. Foundation tests
 
-**Status: ✅ COMPLETED — 2026-08-12**
+**Status: ✅ COMPLETED**
 
-Completed on branch `agent/phase-1-foundation-tasks-2-4`:
+Coverage includes:
 
-- `ReportValueResolver` supports list indexes such as `{{items.0.name}}`
-- resolver supports mixed literal/template interpolation such as `สำนักงาน {{office}} / Invoice {{invoiceNo}}`
-- resolver tests cover nested paths, deeper paths, missing keys, nulls, invalid/negative/out-of-range indexes, numeric values, boolean values, interpolation, and `resolveText`
-- PDF tests cover Thermal 80mm, Thermal 58mm, A4, a 120-row multi-page table, Thai text, empty data, and missing optional values
-- Thai PDF tests exercise Regular/Bold and mixed Thai/English/numeric content
-- PDF assertions check the `%PDF-` signature, `%%EOF`, and page-object count rather than only byte length
-- maintainer validation passed: `flutter analyze` and the full `report_engine` test suite
-
-Expand `ReportValueResolver` coverage:
-
-- `{{shop.name}}`
-- `{{items.0.name}}`
-- deeper nested paths
-- missing key returns empty
-- null values
-- invalid array indexes
-- numeric values
-- boolean values
-
-Expand `PdfRenderService` tests:
-
-- Thermal 80mm
-- Thermal 58mm
-- A4
+- nested resolver paths
+- list indexes
+- interpolation
+- null/missing/invalid values
+- thermal PDF
+- A4 PDF
 - multi-page table
-- Thai text
-- empty data
-- missing optional values
-
-Verify generated output structurally where practical, not only byte count.
-
-Commit:
-
-```text
-test(engine): expand resolver and PDF coverage
-```
+- Thai rendering
+- structural PDF assertions
 
 ---
 
 # PHASE 2 — DESIGNER V2
 
-**Status: ✅ IMPLEMENTATION + LOCAL VALIDATION COMPLETE — 2026-08-12**
+**Status: ✅ MERGED / COMPLETE — 2026-08-12**
 
-Phase 2 was completed on branch `agent/phase-2-designer-template-lifecycle`. Maintainer validation passed for Designer on Flutter 3.32.7 (`flutter analyze` clean and all Designer tests passing) and for the `report_engine` analyzer/test gate. Phase 2 must now go through PR review and CI before merge to `main`. Do not create the Phase 3 branch before that merge.
+Phase 2 PR was merged to `main` before Phase 3 started.
 
 ## 5. Save / Load / Import / Export
 
-**Status: ✅ COMPLETED — 2026-08-12**
+**Status: ✅ COMPLETED**
 
-Completed:
-
-- integrated `TemplateStorageService` into Designer
-- Create / Save / Save As / Rename / Load / Delete / Duplicate
-- Hive-backed local persistence
-- JSON import with malformed/incompatible-template error handling
-- cross-platform JSON export with Web and IO implementations
-- JSON sharing through `share_plus`
-- storage key and `template.id` stay consistent across save/rename/duplicate
-- lifecycle and round-trip storage tests added
-
-Integrate the existing `TemplateStorageService` with Designer.
-
-Required operations:
+Implemented:
 
 - Create
 - Save
@@ -329,41 +134,15 @@ Required operations:
 - Load
 - Delete
 - Duplicate
-
-JSON workflow:
-
-- Import from file
-- Export to file
-- Share JSON using `share_plus`
-
-`file_picker` already exists in the Designer dependency set; reuse it rather than adding a duplicate dependency.
-
-Requirements:
-
-- malformed JSON must fail gracefully
-- incompatible templates must report a useful error
-- exported templates should include a schema/version field if one does not already exist
-
-Commit:
-
-```text
-feat(designer): add persistent template lifecycle
-```
+- Hive persistence
+- JSON import/export
+- JSON sharing
+- malformed/incompatible-template handling
+- storage/template ID consistency
 
 ## 6. Template Gallery
 
-**Status: ✅ COMPLETED — 2026-08-12**
-
-Completed:
-
-- added Gallery as the Designer entry page
-- built-in 80mm Receipt, 58mm Receipt, A4 Invoice, and 4x6 Sticker templates
-- added Blank Template flow
-- built-in assets open as editable working copies instead of mutating packaged assets
-- responsive grid behavior covered by widget tests
-- fixed compact-card overflow found during Flutter 3.32.7 validation
-
-Add a Designer home/gallery before entering the canvas.
+**Status: ✅ COMPLETED**
 
 Built-in templates:
 
@@ -371,129 +150,92 @@ Built-in templates:
 - 58mm Receipt
 - A4 Invoice
 - 4x6 Sticker
+- Blank Template
 
-Load templates from packaged assets.
-
-Built-in templates are immutable; editing must create a working copy.
-
-Responsive layouts must support:
-
-- mobile
-- tablet
-- desktop/web
-
-Commit:
-
-```text
-feat(designer): add template gallery
-```
+Built-in assets open as editable working copies.
 
 ## 7. Table Column Editor
 
-**Status: ✅ COMPLETED — 2026-08-12**
+**Status: ✅ COMPLETED**
 
-Completed:
+Supports:
 
-- table column editor for `key`, `label`, `width`, and `alignment`
-- add / remove / edit / reorder operations
-- invalid and non-positive widths are rejected
-- compatible unknown column JSON fields are preserved
-- table column edits participate in undo/redo
-- PDF table rendering now honors Designer column width and alignment metadata
-- controller and PDF regression coverage added
+- key
+- label
+- width
+- alignment
+- add/remove/edit/reorder
+- width validation
+- unknown JSON field preservation
+- undo/redo
 
-When a table element is selected, allow editing columns containing:
-
-```text
-key
-label
-width
-alignment
-```
-
-Required operations:
-
-- add
-- remove
-- edit
-- reorder
-
-Requirements:
-
-- prevent invalid/negative widths
-- normalize width allocation where appropriate
-- preserve compatible unknown JSON fields
-- support undo/redo
-
-Commit:
-
-```text
-feat(designer): add table column editor
-```
+PDF table rendering honors Designer width/alignment metadata.
 
 ## 8. Designer precision UX
 
-**Status: ✅ COMPLETED — 2026-08-12**
+**Status: ✅ COMPLETED**
 
-Completed:
-
-- 5mm snap-to-grid
-- center guides
-- rulers in mm on top and left
-- zoom constrained to 50%–200%
-- persisted document geometry remains in physical mm and is independent of zoom
-- Undo / Redo for add, delete, move, resize, property changes, and table column edits
-- drag is grouped into a single undo transaction and snaps on interaction end
-- Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z
-- Delete/Backspace
-- arrow-key nudging (1mm; Shift+Arrow 5mm)
-- controller tests cover history, geometry, zoom invariance, property edits, and table edits
-
-Implement:
+Implemented:
 
 - 5mm snap-to-grid
 - center guides
-- ruler in mm on top
-- ruler in mm on left
+- top/left rulers in mm
 - zoom 50%–200%
-- Undo
-- Redo
-
-Coordinate-system rule:
-
-> Persist document geometry in physical document units. Zoom affects rendering only and must not mutate saved element dimensions.
-
-Undo/redo must cover:
-
-- add
-- delete
-- move
-- resize
-- property changes
-- table column edits
-
-Desktop/Web keyboard support:
-
+- physical-mm persistence independent of zoom
+- Undo / Redo
+- grouped drag transactions
 - Ctrl/Cmd+Z
 - Ctrl/Cmd+Shift+Z
 - Delete/Backspace
-- optional arrow-key nudging
-
-Commit:
-
-```text
-feat(designer): add precision editing tools
-```
+- arrow-key nudging
 
 ---
 
 # PHASE 3 — PRINTER ENGINE
 
+**Status: ✅ IMPLEMENTATION + LOCAL VALIDATION + PR REVIEW + CI COMPLETE — 2026-08-12**
+
+Branch:
+
+```text
+agent/phase-3-printer-engine
+```
+
+Pull request:
+
+```text
+PR #7 — Agent/phase 3 printer engine
+```
+
+Current reviewed head:
+
+```text
+97a831c14ab83ff10f93147e7a3942846eb639dd
+```
+
+Validation state:
+
+- maintainer local validation: ✅ PASS
+- `report_engine` analyze/tests: ✅ PASS
+- `report_engine_sunmi` format/analyze/tests: ✅ PASS
+- GitHub CI run #49: ✅ PASS
+- Designer analyze/tests: ✅ PASS
+- Web build: ✅ PASS
+- Android build: ✅ PASS
+- Linux build: ✅ PASS
+- Windows build: ✅ PASS
+- macOS build: ✅ PASS
+- iOS simulator build: ✅ PASS
+- actionable review threads: ✅ RESOLVED
+- PR mergeable: ✅ YES
+
+**Phase boundary:** merge PR #7 into `main` before creating or starting Phase 4 work.
+
 ## 9. Thai ESC/POS
 
-Do not assume all ESC/POS printers use the same Thai code page.
+**Status: ✅ COMPLETED — SOFTWARE VALIDATION**
 
-Introduce a configurable encoding strategy, for example:
+Implemented:
 
 ```dart
 enum ThaiEncoding {
@@ -503,34 +245,45 @@ enum ThaiEncoding {
 }
 ```
 
-Requirements:
+Public configuration uses only valid construction paths:
 
-- support code-page based Thai encoding where compatible
-- support rasterized Thai text fallback for printers with unreliable Thai code pages
-- select strategy from printer configuration/capabilities
-- keep encoding logic isolated from transport logic
+```dart
+EscPosEncodingConfig.tis620(codeTable: ...)
+EscPosEncodingConfig.cp874(codeTable: ...)
+EscPosEncodingConfig.raster()
+```
 
-Test fixtures:
+There is no public general-purpose constructor that can create a TIS-620/CP874 configuration without a code table. This keeps the invariant valid in release builds as well as debug builds.
 
+Implemented:
+
+- TIS-620 byte encoding
+- CP874 byte encoding/extensions
+- printer-specific code table selection
+- rasterized Thai fallback
+- bundled Noto Sans Thai raster rendering
+- encoding isolated from transport
 - `กุ้ง`
 - `น้ำ`
 - `ยอดรวม`
 - mixed Thai/English
-- Thai numerals where applicable
+- Thai numerals
 
-Add unit tests for encoding output.
+Quick-receipt item layout preserves the original **8/2/2** semantic columns:
 
-Physical printer validation remains required before final compatibility claims.
+- item name: width 8, left aligned
+- quantity: width 2, centered
+- price: width 2, right aligned
 
-Commit:
+Legacy output uses ESC/POS row layout. Code-page/raster paths provide equivalent fixed/measured column layout.
 
-```text
-feat(escpos): add configurable Thai printing
-```
+**Physical printer compatibility remains pending.**
 
 ## 10. Unified Printer Discovery
 
-Create a unified model similar to:
+**Status: ✅ COMPLETED**
+
+Core domain model:
 
 ```dart
 enum PrinterConnectionType {
@@ -540,63 +293,78 @@ enum PrinterConnectionType {
   bluetooth,
   embedded,
 }
-
-class UnifiedPrinter {
-  final String id;
-  final String name;
-  final PrinterConnectionType type;
-}
 ```
 
-Avoid exposing plugin-specific raw objects in the public domain model unless required.
+`UnifiedPrinter` does not expose raw plugin objects.
 
-`discoverAll()` should combine available mechanisms while:
+`PrinterDiscoveryService.discoverAll()` provides:
 
-- deduplicating printers
-- handling unsupported platforms
-- isolating plugin exceptions
-- providing deterministic IDs where possible
+- source composition
+- deterministic IDs where available
+- deduplication
+- deterministic ordering
+- exception isolation per source
+- extensible additional discovery sources
 
-Commit:
+Current built-in sources:
 
-```text
-feat(printer): add unified discovery
-```
+- system printers via `printing`
+- Bluetooth LE via `flutter_blue_plus`
+
+Important limitation:
+
+> `flutter_blue_plus` is BLE-only. Bluetooth Classic thermal printers require a separate future adapter/plugin.
 
 ## 11. Sunmi support
 
-Treat Sunmi as a platform-specific printer adapter.
+**Status: ✅ COMPLETED — SOFTWARE VALIDATION**
 
-Before adding `sunmi_printer_plus`, verify:
-
-- supported platforms
-- Flutter 3.32.7 compatibility
-- Android SDK requirements
-- transitive dependency impact
-- impact on Web/Desktop builds
-- impact on eventual pub.dev publication
-
-If direct inclusion harms cross-platform compatibility, isolate Sunmi behind a separate adapter/package or platform implementation.
-
-Capabilities:
-
-- print
-- cut when supported
-- cash drawer when supported
-
-Commit:
+Sunmi is isolated in:
 
 ```text
-feat(printer): add Sunmi adapter
+packages/report_engine_sunmi
+```
+
+Reason: `sunmi_printer_plus` is Android-specific, so direct inclusion in core would contaminate Web/Desktop/iOS dependency boundaries.
+
+Implemented:
+
+- ESC/POS transport through Sunmi embedded printer service
+- embedded printer discovery
+- printer service rebind support
+- optional cutter capability
+- optional cash-drawer capability
+
+### Safe capability model
+
+`SunmiPrinterAdapter` is **print-only by default**.
+
+The host must supply a verified device profile before optional hardware operations are exposed:
+
+```dart
+const SunmiHardwareProfile(
+  supportsCutter: true,
+  supportsCashDrawer: false,
+)
+```
+
+The adapter factory returns capability-bearing implementations only when the supplied hardware profile confirms support. Therefore a model without a cutter does not pass `is CutterCapability`, and a model without a cash-drawer port does not pass `is CashDrawerCapability`.
+
+Do not infer Sunmi model capabilities without hardware/device inventory evidence.
+
+**Physical Sunmi verification remains pending.**
+
+See:
+
+```text
+docs/PHASE3_SUNMI_ADAPTER_AUDIT.md
 ```
 
 ## 12. Hardware capabilities
 
-Do **not** put cut or cash-drawer commands in `PdfRenderService`.
+**Status: ✅ COMPLETED**
 
-PDF rendering and physical hardware control are separate responsibilities.
-
-Model optional capabilities such as:
+Core contracts:
 
 ```dart
 abstract interface class CutterCapability {
@@ -605,66 +373,86 @@ abstract interface class CutterCapability {
 
 abstract interface class CashDrawerCapability {
   Future<void> openCashDrawer();
+  Future<bool> isCashDrawerOpen();
 }
 ```
 
-Implement only in compatible printer adapters.
+Rules now enforced:
 
-Unsupported operations must report capability absence cleanly.
+- `PdfRenderService` has no hardware commands
+- `EscPosRenderer` has no implicit cut command
+- `EscPosPrinterService` does not synthesize cutter bytes
+- cut is invoked only through explicit `CutterCapability`
+- unsupported cut requests fail before transport sends the print payload
+- capability tests verify `send -> cut` ordering
+- adapters implement only capabilities confirmed for the target hardware profile
 
-Commit:
+Validation evidence:
 
 ```text
-refactor(printer): model hardware capabilities
+docs/PHASE3_TASK9_11_VALIDATION.md
 ```
+
+The file name is historical; its content records Tasks 9–12.
 
 ---
 
 # PHASE 4 — HARDENING
 
+**Status: ⏳ NEXT — DO NOT START UNTIL PR #7 IS MERGED**
+
 ## 13. CI
 
-Update `.github/workflows/ci.yml` using Flutter **3.32.7**.
+Strengthen `.github/workflows/ci.yml` using Flutter **3.32.7** without reducing existing platform coverage.
 
-The current CI already has native Designer build gates. **Preserve them.** Task 13 may strengthen or reorganize CI, but must not reduce existing platform compile coverage.
+Required gates:
 
 ### report_engine
 
 - pub get
 - format check
 - analyze
-- unit tests
+- tests
 
-### designer quality
+### report_engine_sunmi
+
+Add an explicit companion-package quality job:
 
 - pub get
 - format check
 - analyze
 - tests
 
-### designer build matrix — required to retain
+This is important because Phase 3 validation showed that the existing CI did not directly run the Sunmi package gate.
 
-- Web release build
-- Android APK build
-- Linux release build
-- Windows release build
-- macOS release build
-- iOS simulator build
+### designer
+
+- pub get
+- format check
+- analyze
+- tests
+
+### build matrix
+
+Retain:
+
+- Web release
+- Android APK
+- Linux release
+- Windows release
+- macOS release
+- iOS simulator
 
 ### example
 
+Add/retain:
+
 - pub get
 - analyze
-- tests where available
-- build Android APK
+- tests
+- Android APK build
 
-The example APK is an additional gate and does **not** replace any Designer native build job.
-
-Use dependency caching where appropriate.
-
-CI must fail on analyzer errors, failing tests, or required build-gate failures.
-
-Commit:
+Commit target:
 
 ```text
 ci: validate engine designer and example
@@ -672,28 +460,20 @@ ci: validate engine designer and example
 
 ## 14. Rendering regression tests
 
-Create deterministic fixtures for:
+Add deterministic/stable regression coverage for:
 
 - Thermal 80mm
 - Thermal 58mm
 - A4 invoice with 25+ rows
 - Thai invoice
 
-If deterministic PDF-byte comparison is unreliable because of metadata/object ordering, compare stable properties instead:
+Prefer stable properties over raw PDF byte equality when metadata/object ordering is nondeterministic:
 
 - valid PDF structure
 - page count
-- expected page dimensions
+- page dimensions
 - expected render/content operations
-- rendered-image golden where feasible
-
-`bytes.length > 0` alone is not a golden test.
-
-Commit:
-
-```text
-test(pdf): add rendering regression coverage
-```
+- rendered golden where feasible
 
 ## 15. Documentation
 
@@ -701,46 +481,24 @@ Create/update:
 
 ```text
 docs/PRINTER_COMPATIBILITY.md
+docs/CODE_WALKTHROUGH.md
 ```
 
-Separate status into:
+Printer compatibility must separate:
 
 - Implemented
 - Automated test coverage
 - Emulator/simulator verified
 - Physically tested
 
-Candidate printers:
+Candidate hardware:
 
 - XP-80
 - XP-58
 - Epson TM-T88V
 - Sunmi V2
 
-Document:
-
-- connection type
-- Thai strategy
-- code page
-- cut support
-- cash drawer support
-- known limitations
-
-Never mark a printer as physically tested without actual hardware evidence.
-
-Update:
-
-```text
-docs/CODE_WALKTHROUGH.md
-```
-
-with the new architecture/services.
-
-Commit:
-
-```text
-docs: update printer compatibility and walkthrough
-```
+Never mark a model physically tested without real hardware evidence.
 
 ---
 
@@ -748,147 +506,78 @@ docs: update printer compatibility and walkthrough
 
 ## 16. Prepare `report_engine` for pub.dev
 
-Review `packages/report_engine/pubspec.yaml`.
-
-The package currently uses `publish_to: none`; remove it only when the package is actually ready for publication.
-
-Verify/add:
+Review publication metadata and artifacts:
 
 - description
 - repository
-- homepage where appropriate
-- issue_tracker
+- homepage/issue tracker where appropriate
 - topics
 - license
 - README
 - CHANGELOG
+- publish dry-run
+- exclusions
 
-Run publish dry-run using the correct package command.
+`publish_to: none` must remain until the package is actually ready for publication.
 
-Resolve material publish warnings.
-
-Ensure publication excludes:
-
-- generated build output
-- IDE files
-- oversized test artifacts
-- credentials/secrets
-
-Commit:
-
-```text
-chore(engine): prepare pub.dev release
-```
+The companion `report_engine_sunmi` publication strategy must also be decided because it currently depends on core through a monorepo path dependency.
 
 ## 17. Designer Web deployment
 
-Add Firebase Hosting configuration for `apps/designer`.
-
-Firebase Hosting is deployment infrastructure only; the application must remain backend-free at runtime.
+Add Firebase Hosting configuration for `apps/designer` while keeping application runtime backend-free.
 
 Verify:
 
-- correct Flutter web base path
-- SPA fallback where required
-- appropriate caching for versioned Flutter assets
+- web base path
+- SPA fallback
+- caching strategy
 - deployment instructions
+- successful Web build
 
-Build:
-
-```bash
-flutter build web
-```
-
-Do not claim deployment success without valid credentials and an actual successful deployment.
-
-Commit:
-
-```text
-chore(designer): configure Firebase Hosting
-```
+Do not claim deployment success without valid credentials and an actual deployment.
 
 ---
 
 # RELEASE GATE — v1.0.0
 
-Before declaring Production v1.0.0 complete, verify:
+Before declaring v1.0.0 production-ready:
 
 - [ ] repository clean
 - [ ] format checks pass
-- [ ] analyzer passes
-- [ ] all automated tests pass
-- [ ] Designer Web builds
-- [ ] Designer Android APK builds
+- [ ] `report_engine` analyzer/tests pass
+- [ ] `report_engine_sunmi` analyzer/tests pass
+- [ ] Designer analyzer/tests pass
+- [ ] Designer Web build passes
+- [ ] Designer Android APK build passes
 - [ ] Designer Linux build passes
 - [ ] Designer Windows build passes
 - [ ] Designer macOS build passes
 - [ ] Designer iOS simulator build passes
 - [ ] Example Android APK builds
-- [ ] package publish dry-run passes
-- [ ] bundled Thai PDF rendering works
-- [ ] ESC/POS Thai encoding tests pass
+- [ ] publish dry-run passes
+- [x] bundled Thai PDF rendering implemented and tested
+- [x] ESC/POS Thai encoding tests pass
 - [x] save/load round trip passes
-- [x] import/export workflow implemented and locally validated
+- [x] import/export workflow implemented and validated
 - [x] undo/redo tests pass
-- [ ] A4 multi-page output passes
+- [x] A4 multi-page software output coverage exists
+- [ ] printer compatibility documentation complete
+- [ ] physical printer evidence recorded where available
 
-Hardware-dependent functionality must remain labeled:
+Hardware-dependent items remain:
 
 ```text
 NEEDS PHYSICAL VERIFICATION
 ```
 
-until verified with actual hardware.
-
-Create:
-
-```text
-docs/RELEASE_CHECKLIST_v1.0.0.md
-```
-
-Do not mark v1.0.0 production-ready while mandatory non-hardware release gates are failing.
+until tested on actual devices.
 
 ---
 
-# Execution Protocol
+# Current next action
 
-For every numbered task:
-
-1. Inspect relevant existing code.
-2. State briefly what will change.
-3. Implement.
-4. Format.
-5. Analyze.
-6. Run relevant tests/builds.
-7. Fix regressions.
-8. Summarize changed files and validation results.
-9. Commit only that task with the specified conventional commit message.
-10. Continue to the next task automatically **within the current phase only**.
-11. At the end of a phase, stop after validation, update this handoff, open/review/merge the phase PR, and only then create the next phase branch from updated `main`.
-
-Do not stop merely because implementation differs from the roadmap if a better architectural equivalent satisfies the requirement.
-
-Stop only for:
-
-- unavailable credentials required for deployment/publishing
-- physical hardware verification
-- destructive or irreversible operation
-- unrecoverable external dependency problems
-- phase boundary awaiting PR review/merge
-
-In those cases, complete everything else possible and record the blocker explicitly.
-
-## Next Action
-
-Phase 2 Designer V2 implementation and local validation are complete on `agent/phase-2-designer-template-lifecycle`.
-
-**Do not start Phase 3 yet.**
-
-Next steps:
-
-1. open a Phase 2 pull request from `agent/phase-2-designer-template-lifecycle` to `main`
-2. let the full GitHub Actions CI matrix run
-3. resolve all review comments and CI regressions on the Phase 2 branch
-4. merge the Phase 2 PR into `main`
-5. verify updated `main`
-6. only after the merge, create the Phase 3 branch and begin Task 9 — Thai ESC/POS
+1. Merge **PR #7** into `main` after final maintainer approval.
+2. Pull/update `main`.
+3. Create a new Phase 4 branch from updated `main`.
+4. Start **Task 13 — CI hardening**, including a dedicated `report_engine_sunmi` quality gate.
+5. Do not carry Phase 4 changes on `agent/phase-3-printer-engine`.
