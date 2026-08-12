@@ -81,9 +81,9 @@ class SunmiPrinterAdapter implements EscPosTransport, PrinterDiscoverySource {
 class _SunmiCutterAdapter extends SunmiPrinterAdapter
     implements CutterCapability {
   _SunmiCutterAdapter(
-    SunmiPrinterBridge bridge,
-    SunmiHardwareProfile hardwareProfile,
-  ) : super._(bridge, hardwareProfile);
+    super._bridge,
+    super.hardwareProfile,
+  ) : super._();
 
   @override
   Future<void> cutPaper() async {
@@ -94,9 +94,9 @@ class _SunmiCutterAdapter extends SunmiPrinterAdapter
 class _SunmiCashDrawerAdapter extends SunmiPrinterAdapter
     implements CashDrawerCapability {
   _SunmiCashDrawerAdapter(
-    SunmiPrinterBridge bridge,
-    SunmiHardwareProfile hardwareProfile,
-  ) : super._(bridge, hardwareProfile);
+    super._bridge,
+    super.hardwareProfile,
+  ) : super._();
 
   @override
   Future<void> openCashDrawer() async {
@@ -110,9 +110,9 @@ class _SunmiCashDrawerAdapter extends SunmiPrinterAdapter
 class _SunmiFullCapabilityAdapter extends SunmiPrinterAdapter
     implements CutterCapability, CashDrawerCapability {
   _SunmiFullCapabilityAdapter(
-    SunmiPrinterBridge bridge,
-    SunmiHardwareProfile hardwareProfile,
-  ) : super._(bridge, hardwareProfile);
+    super._bridge,
+    super.hardwareProfile,
+  ) : super._();
 
   @override
   Future<void> cutPaper() async {
