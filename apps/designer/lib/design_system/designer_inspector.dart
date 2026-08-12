@@ -31,7 +31,8 @@ class DesignerInspector extends StatelessWidget {
   final VoidCallback onDelete;
   final List<Map<String, dynamic>> tableColumns;
   final VoidCallback? onAddTableColumn;
-  final void Function(int index, String key, dynamic value)? onUpdateTableColumn;
+  final void Function(int index, String key, dynamic value)?
+      onUpdateTableColumn;
   final void Function(int from, int to)? onMoveTableColumn;
   final ValueChanged<int>? onRemoveTableColumn;
 
@@ -147,7 +148,8 @@ class DesignerInspector extends StatelessWidget {
                             value: 'center',
                             child: Text('Center'),
                           ),
-                          DropdownMenuItem(value: 'right', child: Text('Right')),
+                          DropdownMenuItem(
+                              value: 'right', child: Text('Right')),
                         ],
                         onChanged: (value) {
                           if (value != null) onAlignmentChanged(value);
@@ -313,13 +315,15 @@ class _TableColumnCard extends StatelessWidget {
             children: [
               IconButton(
                 tooltip: 'Move column up',
-                onPressed: index > 0 ? () => onMove?.call(index, index - 1) : null,
+                onPressed:
+                    index > 0 ? () => onMove?.call(index, index - 1) : null,
                 icon: const Icon(Icons.arrow_upward, size: 18),
               ),
               IconButton(
                 tooltip: 'Move column down',
-                onPressed:
-                    index < count - 1 ? () => onMove?.call(index, index + 1) : null,
+                onPressed: index < count - 1
+                    ? () => onMove?.call(index, index + 1)
+                    : null,
                 icon: const Icon(Icons.arrow_downward, size: 18),
               ),
               IconButton(
