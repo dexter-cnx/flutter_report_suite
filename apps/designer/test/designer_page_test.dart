@@ -5,8 +5,16 @@ import 'package:report_designer/pages/designer_page.dart';
 void main() {
   Widget buildSubject() => const MaterialApp(home: DesignerPage());
 
-  testWidgets('boots the designer with the main authoring controls', (tester) async {
+  Future<void> pumpDesktop(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(buildSubject());
+  }
+
+  testWidgets('boots the designer with the main authoring controls', (tester) async {
+    await pumpDesktop(tester);
 
     expect(find.text('Report Designer'), findsOneWidget);
     expect(find.text('Add Element'), findsOneWidget);
@@ -18,7 +26,7 @@ void main() {
   });
 
   testWidgets('adding text selects it and exposes editable properties', (tester) async {
-    await tester.pumpWidget(buildSubject());
+    await pumpDesktop(tester);
 
     await tester.tap(find.text('Text'));
     await tester.pump();
@@ -30,7 +38,7 @@ void main() {
   });
 
   testWidgets('table elements use the items expression by default', (tester) async {
-    await tester.pumpWidget(buildSubject());
+    await pumpDesktop(tester);
 
     await tester.tap(find.text('Table {{items}}'));
     await tester.pump();
@@ -40,7 +48,7 @@ void main() {
   });
 
   testWidgets('export dialog contains the current template JSON', (tester) async {
-    await tester.pumpWidget(buildSubject());
+    await pumpDesktop(tester);
 
     await tester.tap(find.text('Dynamic {{field}}'));
     await tester.pump();
