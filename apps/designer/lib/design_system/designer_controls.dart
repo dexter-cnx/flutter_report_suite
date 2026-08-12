@@ -127,8 +127,9 @@ class _InspectorSectionState extends State<InspectorSection> {
             child: SizedBox(
               height: DesignerLayout.panelHeaderHeight,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: DesignerSpacing.md),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: DesignerSpacing.md,
+                ),
                 child: Row(
                   children: [
                     Icon(
