@@ -46,12 +46,25 @@ class CanvasPage extends StatelessWidget {
       width: width,
       height: height,
       clipBehavior: Clip.none,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: DesignerColors.canvasBackground,
-        border: Border.all(color: DesignerColors.borderStrong),
         boxShadow: DesignerElevation.canvasPaper,
       ),
-      child: child,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          child,
+          const IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.fromBorderSide(
+                  BorderSide(color: DesignerColors.borderStrong),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -157,14 +170,12 @@ class CanvasSelectionOverlay extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: DesignerColors.primary.withValues(alpha: 0.05),
-              border: Border.all(color: DesignerColors.primary),
-            ),
-            child: child,
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: DesignerColors.primary.withValues(alpha: 0.05),
+            border: Border.all(color: DesignerColors.primary),
           ),
+          child: child,
         ),
         if (showHandles) ..._handles(),
       ],
@@ -175,13 +186,20 @@ class CanvasSelectionOverlay extends StatelessWidget {
     const size = DesignerLayout.selectionHandleSize;
     const half = size / 2;
 
-    Widget handle({double? left, double? right, double? top, double? bottom}) {
+    Widget handle(
+      String id, {
+      double? left,
+      double? right,
+      double? top,
+      double? bottom,
+    }) {
       return Positioned(
         left: left,
         right: right,
         top: top,
         bottom: bottom,
         child: Container(
+          key: ValueKey('selection-handle-$id'),
           width: size,
           height: size,
           decoration: BoxDecoration(
@@ -193,10 +211,10 @@ class CanvasSelectionOverlay extends StatelessWidget {
     }
 
     return [
-      handle(left: -half, top: -half),
-      handle(right: -half, top: -half),
-      handle(left: -half, bottom: -half),
-      handle(right: -half, bottom: -half),
+      handle('top-left', left: -half, top: -half),
+      handle('top-right', right: -half, top: -half),
+      handle('bottom-left', left: -half, bottom: -half),
+      handle('bottom-right', right: -half, bottom: -half),
     ];
   }
 }
