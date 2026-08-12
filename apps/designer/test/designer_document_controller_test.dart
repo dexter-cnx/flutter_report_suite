@@ -83,6 +83,29 @@ void main() {
     expect(controller.elements.single['y'], 0.0);
   });
 
+  test('resize and property changes participate in undo redo', () {
+    final controller = DesignerDocumentController();
+    controller.addElement(textElement('one'));
+
+    controller.resizeSelected(42, 19);
+    expect(controller.selectedElement!['w'], 40.0);
+    expect(controller.selectedElement!['h'], 20.0);
+
+    controller.updateSelected('key', 'Changed');
+    expect(controller.selectedElement!['key'], 'Changed');
+
+    controller.undo();
+    expect(controller.elements.single['key'], 'Hello');
+
+    controller.undo();
+    expect(controller.elements.single['w'], 20.0);
+    expect(controller.elements.single['h'], 10.0);
+
+    controller.redo();
+    expect(controller.elements.single['w'], 40.0);
+    expect(controller.elements.single['h'], 20.0);
+  });
+
   test('table columns add edit reorder remove and preserve unknown fields', () {
     final controller = DesignerDocumentController();
     controller.addElement(tableElement());
@@ -101,6 +124,22 @@ void main() {
     expect(columns.first['width'], 2.0);
     expect(columns.first['futureField'], 'preserved');
     expect(columns[1]['key'], 'field3');
+  });
+
+  test('table column edit can be undone', () {
+    final controller = DesignerDocumentController();
+    controller.addElement(tableElement());
+    controller.updateTableColumn(0, 'alignment', 'center');
+    expect(
+      (controller.selectedElement!['columns'] as List).first['alignment'],
+      'center',
+    );
+
+    controller.undo();
+    expect(
+      (controller.elements.single['columns'] as List).first['alignment'],
+      'left',
+    );
   });
 
   test('zoom is clamped without mutating document geometry', () {
