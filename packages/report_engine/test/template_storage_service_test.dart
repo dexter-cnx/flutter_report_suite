@@ -66,12 +66,12 @@ void main() {
     await storage.saveTemplate('first', template);
     await storage.saveTemplate('second', template);
 
-    expect(
-      () => storage.renameTemplate('first', 'second'),
+    await expectLater(
+      storage.renameTemplate('first', 'second'),
       throwsA(isA<StateError>()),
     );
-    expect(
-      () => storage.duplicateTemplate('first', 'second'),
+    await expectLater(
+      storage.duplicateTemplate('first', 'second'),
       throwsA(isA<StateError>()),
     );
   });
