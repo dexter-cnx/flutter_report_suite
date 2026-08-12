@@ -78,6 +78,10 @@ PRE-FLIGHT is complete; Phase 1 work may proceed.
 
 ## 1. Verify and preserve runnable Designer platforms
 
+**Status: ✅ COMPLETED — 2026-08-12**
+
+Maintainer-confirmed verification passed for the existing Designer platform scaffolding. The Web, Android, iOS, Linux, macOS, and Windows projects were preserved rather than regenerated, and the existing six-platform CI build matrix remains a required regression gate.
+
 The current repository already contains Flutter 3.32.7 platform scaffolding for `apps/designer` on:
 
 - Web
@@ -122,6 +126,20 @@ chore(designer): verify Flutter platform projects
 
 ## 2. Production Thai PDF fonts
 
+**Status: ✅ COMPLETED — 2026-08-12**
+
+Completed on branch `agent/phase-1-foundation-tasks-2-4`:
+
+- registered `assets/fonts/` in `report_engine`
+- bundled `NotoSansThai-Regular.ttf` and `NotoSansThai-Bold.ttf`
+- added the SIL Open Font License and font integration notes
+- changed `PdfRenderService` to resolve `packages/report_engine/assets/fonts/...` before the legacy app-relative path
+- cached loaded regular/bold `pw.Font` instances per renderer
+- standardized expected filenames to `NotoSansThai-Regular.ttf` and `NotoSansThai-Bold.ttf`
+- added Thai rendering coverage for `กุ้ง`, `น้ำ`, `สำนักงาน`, and mixed Thai/English/numeric content
+- added a Thai PDF visual-inspection fixture
+- validated package analyze/tests and consuming example app behavior
+
 Bundle an open-license Thai font suitable for redistribution.
 
 Preferred:
@@ -162,6 +180,23 @@ feat(pdf): bundle Thai fonts and support Thai rendering
 ```
 
 ## 3. Example application
+
+**Status: ✅ COMPLETED — 2026-08-12**
+
+Completed on branch `agent/phase-1-foundation-tasks-2-4`:
+
+- retained the existing `FlutterReportPrinter` public facade demonstration
+- retained Thermal 80mm and Thermal 58mm preview flows
+- expanded the A4 sample to generate 30 complete invoice rows so page-breaking can be exercised
+- populated the A4 template keys for invoice/company/customer/due-date and row number/total fields
+- exposed Thai PDF preview/share through `PdfPreview`
+- added ESC/POS quick-receipt generation with graceful error handling
+- retained system-printer discovery
+- added a simple template JSON export/copy demonstration
+- clearly labels physical Thai ESC/POS output as hardware-dependent
+- provisioned `packages/report_engine/example/android/`
+- aligned the Android scaffold with the Flutter 3.32.7 baseline: AGP 8.7.3, Kotlin 2.1.0, Gradle 8.12
+- validated `flutter pub get`, `flutter analyze`, `flutter test`, and `flutter build apk --debug`
 
 Create or complete:
 
@@ -222,6 +257,18 @@ feat(example): add report engine showcase app
 ```
 
 ## 4. Foundation tests
+
+**Status: ✅ COMPLETED — 2026-08-12**
+
+Completed on branch `agent/phase-1-foundation-tasks-2-4`:
+
+- `ReportValueResolver` supports list indexes such as `{{items.0.name}}`
+- resolver supports mixed literal/template interpolation such as `สำนักงาน {{office}} / Invoice {{invoiceNo}}`
+- resolver tests cover nested paths, deeper paths, missing keys, nulls, invalid/negative/out-of-range indexes, numeric values, boolean values, interpolation, and `resolveText`
+- PDF tests cover Thermal 80mm, Thermal 58mm, A4, a 120-row multi-page table, Thai text, empty data, and missing optional values
+- Thai PDF tests exercise Regular/Bold and mixed Thai/English/numeric content
+- PDF assertions check the `%PDF-` signature, `%%EOF`, and page-object count rather than only byte length
+- maintainer validation passed: `flutter analyze` and the full `report_engine` test suite
 
 Expand `ReportValueResolver` coverage:
 
@@ -779,4 +826,11 @@ In those cases, complete everything else possible and record the blocker explici
 
 ## Next Action
 
-PRE-FLIGHT is complete. Continue with **Phase 1 / Task 1 — Verify and preserve runnable Designer platforms**.
+Phase 1 Foundation is complete. Continue Phase 2 on branch `agent/phase-2-designer-template-lifecycle` with Task 5 — Save / Load / Import / Export.
+
+Next validation focus:
+
+1. integrate `TemplateStorageService` into Designer lifecycle actions
+2. implement Create / Save / Save As / Rename / Load / Delete / Duplicate
+3. implement JSON import / export / share with graceful malformed/incompatible-template handling
+4. run Designer format/analyze/tests on Flutter 3.32.7 before marking Task 5 complete

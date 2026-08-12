@@ -1,0 +1,69 @@
+{
+  "template": {
+    "id": "thai_pdf_visual_fixture",
+    "version": 1,
+    "paper": {
+      "type": "pdf",
+      "widthMm": 80,
+      "heightMm": 120,
+      "autoHeight": false,
+      "marginMm": 5
+    },
+    "elements": [
+      {
+        "id": "title",
+        "type": "dynamic_text",
+        "key": "{{title}}",
+        "x": 0,
+        "y": 0,
+        "w": 70,
+        "h": 10,
+        "style": {
+          "fontSize": 14,
+          "bold": true,
+          "align": "center"
+        }
+      },
+      {
+        "id": "thai_samples",
+        "type": "dynamic_text",
+        "key": "{{thaiSamples}}",
+        "x": 0,
+        "y": 14,
+        "w": 70,
+        "h": 10,
+        "style": {
+          "fontSize": 12
+        }
+      },
+      {
+        "id": "mixed",
+        "type": "dynamic_text",
+        "key": "สำนักงาน {{office}} / Invoice {{invoiceNo}} / {{total}} บาท",
+        "x": 0,
+        "y": 28,
+        "w": 70,
+        "h": 16,
+        "style": {
+          "fontSize": 11,
+          "bold": true
+        }
+      }
+    ]
+  },
+  "data": {
+    "title": "ทดสอบฟอนต์ภาษาไทย",
+    "thaiSamples": "กุ้ง น้ำ สำนักงาน",
+    "office": "เชียงใหม่",
+    "invoiceNo": "INV-2026-001",
+    "total": 1234.5
+  },
+  "visualChecks": [
+    "Thai tone marks and vowels are visible and not replaced by tofu boxes",
+    "กุ้ง renders with the upper mark positioned correctly",
+    "น้ำ renders with stacked marks legibly",
+    "สำนักงาน renders without missing glyphs",
+    "Mixed Thai, English, punctuation, and numerals share the same line correctly",
+    "Bold Thai text is visibly bold"
+  ]
+}

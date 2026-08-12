@@ -1,6 +1,14 @@
 enum ReportPaperType { thermal, a4, pdf, custom }
 
-enum ReportElementType { text, dynamicText, line, barcode, qrcode, table, image }
+enum ReportElementType {
+  text,
+  dynamicText,
+  line,
+  barcode,
+  qrcode,
+  table,
+  image
+}
 
 class PaperConfig {
   const PaperConfig({

@@ -9,6 +9,11 @@ class PdfRenderService {
   PdfRenderService({ReportValueResolver? resolver})
       : _resolver = resolver ?? const ReportValueResolver();
 
+  static const String _packageFontPrefix =
+      'packages/report_engine/assets/fonts';
+  static const String _regularFontName = 'NotoSansThai-Regular.ttf';
+  static const String _boldFontName = 'NotoSansThai-Bold.ttf';
+
   final ReportValueResolver _resolver;
   pw.Font? _regularFont;
   pw.Font? _boldFont;
@@ -32,15 +37,30 @@ class PdfRenderService {
 
   Future<void> _loadFonts() async {
     if (_regularFont != null && _boldFont != null) return;
-    try {
-      final regular = await rootBundle.load('assets/fonts/THSarabunNew.ttf');
-      final bold = await rootBundle.load('assets/fonts/THSarabunNew Bold.ttf');
-      _regularFont = pw.Font.ttf(regular);
-      _boldFont = pw.Font.ttf(bold);
-    } catch (_) {
-      _regularFont = pw.Font.helvetica();
-      _boldFont = pw.Font.helveticaBold();
+
+    final regular = await _loadFontAsset(_regularFontName);
+    final bold = await _loadFontAsset(_boldFontName);
+
+    _regularFont = regular ?? pw.Font.helvetica();
+    _boldFont = bold ?? pw.Font.helveticaBold();
+  }
+
+  Future<pw.Font?> _loadFontAsset(String filename) async {
+    final candidates = <String>[
+      '$_packageFontPrefix/$filename',
+      'assets/fonts/$filename',
+    ];
+
+    for (final assetPath in candidates) {
+      try {
+        final data = await rootBundle.load(assetPath);
+        return pw.Font.ttf(data);
+      } catch (_) {
+        // Try the next candidate. The app-relative candidate is retained only
+        // for backward compatibility with host apps that bundled the fonts.
+      }
     }
+    return null;
   }
 
   void _addThermalPage(
@@ -192,7 +212,12 @@ class PdfRenderService {
 
   dynamic _valueFor(ReportElement element, Map<String, dynamic> data) {
     if (element.type == 'text') return element.key ?? '';
-    return _resolver.resolve(element.key, data);
+    if (element.type == 'table' ||
+        element.type == 'qrcode' ||
+        element.type == 'barcode') {
+      return _resolver.resolve(element.key, data);
+    }
+    return _resolver.resolveText(element.key, data);
   }
 
   pw.TextStyle _textStyle({required double fontSize, bool bold = false}) {
