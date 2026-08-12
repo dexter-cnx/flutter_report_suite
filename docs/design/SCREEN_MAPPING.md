@@ -106,7 +106,7 @@ Add incrementally after shell primitives exist.
 
 ## 5. PDF / System Print Preview
 
-Current `DesignerPage` launches `Printing.layoutPdf` directly.
+Current `DesignerPage._previewPdf` generates PDF bytes through `FlutterReportPrinter.generatePdf`, then pushes a preview route containing the `printing` package `PdfPreview` widget. The existing preview UI therefore already owns print/share behavior and must remain the baseline until the future unified preview shell deliberately replaces it. `Printing.layoutPdf` is only used by the separate `FlutterReportPrinter.preview` helper and is not the current Designer preview path.
 
 ```text
 PreviewWorkspace
@@ -126,7 +126,7 @@ PreviewWorkspace
 └─ DesignerStatusBar
 ```
 
-This is a future UI shell around existing report-engine/printing functionality; do not regress direct output while introducing it.
+This is a future UI shell around existing report-engine/printing functionality; preserve the current `PdfPreview` route and its print/share behavior until that shell is implemented and validated.
 
 ## 6. ESC/POS Preview
 
