@@ -233,7 +233,7 @@ class _DesignerPageState extends State<DesignerPage> {
               color: selected ? Colors.blue : Colors.grey.shade300,
               width: selected ? 2 : 0.5,
             ),
-            color: selected ? Colors.blue.withOpacity(0.08) : null,
+            color: selected ? Colors.blue.withValues(alpha: 0.08) : null,
           ),
           child: _elementPreview(element),
         ),
