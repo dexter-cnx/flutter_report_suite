@@ -1,44 +1,85 @@
+# Flutter Report Suite
 
-# Flutter Report Suite - Monorepo Production
+A Flutter monorepo for designing report templates and rendering them offline on Web, desktop, and mobile.
 
-Structure:
-```
+## Architecture
+
+```text
 flutter_report_suite/
-  packages/
-    report_engine/  -> Flutter package (thermal 58/80, A4, PDF, ESC/POS)
-      lib/src/
-        models/report_template.dart
-        services/pdf_render_service.dart
-        services/template_storage_service.dart
-        printer/printer_service.dart (PDF)
-        printer/esc_pos_printer_service.dart (Bluetooth ESC/POS direct)
-  apps/
-    designer/ -> Designer App (Web/Desktop/Mobile)
-      lib/pages/designer_page.dart - Drag & Drop canvas, 3 paper types
-
-  PROMPTS.md - prompts for AI generation
+├── apps/
+│   └── designer/
+│       └── lib/pages/designer_page.dart
+├── packages/
+│   └── report_engine/
+│       ├── lib/report_engine.dart
+│       ├── lib/src/models/report_template.dart
+│       ├── lib/src/services/report_value_resolver.dart
+│       ├── lib/src/services/pdf_render_service.dart
+│       ├── lib/src/services/template_storage_service.dart
+│       ├── lib/src/printer/printer_service.dart
+│       └── lib/src/printer/esc_pos_printer_service.dart
+└── PROMPTS.md
 ```
 
-## Quick Start
+The intended flow is:
 
-### 1. Package
+```text
+Designer -> template JSON -> app/local storage -> report_engine -> PDF/system printer/ESC-POS
+```
+
+The Designer depends on `report_engine` by path, so PDF preview and exported JSON use the same template contract as runtime printing.
+
+## Quick start
+
+### Report engine
+
+```bash
 cd packages/report_engine
 flutter pub get
+flutter test
+```
 
-### 2. Designer (Web/Desktop/Mobile support)
+### Designer
+
+```bash
 cd apps/designer
 flutter pub get
-flutter run -d chrome  # Web
-flutter run -d windows # Desktop
-flutter run -d android # Mobile
+flutter run -d chrome
+```
 
-Designer features:
-- Add Text, Dynamic {{field}}, Line, Table, QR, Barcode
-- Drag & Drop on canvas
-- Paper switch: Thermal 58/80, A4, PDF
-- Properties panel: x,y,w,h,fontSize,bold,align
-- Preview PDF instantly
-- Export JSON (compatible with report_engine)
+Use another Flutter device target for Windows, macOS, Linux, Android, or iOS.
 
-### Flow
-Designer (Web) -> Export template.json -> Save to server/Hive -> Mobile app loads json + data -> report_engine renders -> Print/Share
+## Template model
+
+A report consists of:
+
+- `PaperConfig`: type, dimensions, auto-height, margin
+- `ReportElement`: type, key, position, size, style, optional table columns
+- `ReportTemplate`: id, version, paper, and elements
+
+Dynamic values support nested expressions such as `{{shop.name}}`. Literal `text` elements are not resolved against runtime data.
+
+## Output paths
+
+- `PdfRenderService`: PDF, A4, and thermal PDF rendering
+- `FlutterReportPrinter`: preview, share, system printer discovery, direct system printing
+- `EscPosPrinterService`: Bluetooth ESC/POS rendering and chunked writes
+- `TemplateStorageService`: offline template persistence with Hive
+
+## Designer
+
+The Designer supports:
+
+- Text and dynamic fields
+- Lines
+- Tables with column mappings
+- QR codes and barcodes
+- Thermal, A4, and custom PDF paper presets
+- Dragging elements on a scaled millimeter canvas
+- Property editing for x/y/w/h, font size, bold, and alignment
+- PDF preview
+- JSON export
+
+## Notes
+
+Host applications are responsible for platform Bluetooth permission declarations and printer-specific compatibility. The report engine itself remains offline-first and does not require a backend.
