@@ -170,7 +170,7 @@ class EscPosPrinterService {
       }
       if (element.type == 'barcode') {
         if (text.isNotEmpty) {
-          bytes.addAll(generator.barcode(Barcode.code128(text)));
+          bytes.addAll(generator.barcode(Barcode.code128(text.codeUnits)));
         }
         continue;
       }
