@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
+import '../models/report_template.dart';
 import '../services/report_value_resolver.dart';
 import 'encoding/esc_pos_encoding_config.dart';
 import 'rendering/esc_pos_renderer.dart';
