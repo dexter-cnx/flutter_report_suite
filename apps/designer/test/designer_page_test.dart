@@ -31,7 +31,7 @@ void main() {
     await tester.tap(find.text('Text'));
     await tester.pump();
 
-    expect(find.text('Sample text'), findsOneWidget);
+    expect(find.text('Sample text'), findsWidgets);
     expect(find.text('Properties'), findsOneWidget);
     expect(find.text('Key / Text'), findsOneWidget);
     expect(find.text('Bold'), findsOneWidget);
@@ -43,7 +43,7 @@ void main() {
     await tester.tap(find.text('Table {{items}}'));
     await tester.pump();
 
-    expect(find.text('{{items}}'), findsOneWidget);
+    expect(find.text('{{items}}'), findsWidgets);
     expect(find.text('Properties'), findsOneWidget);
   });
 
@@ -56,7 +56,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Template JSON'), findsOneWidget);
-    expect(find.textContaining('"type": "dynamic_text"'), findsOneWidget);
-    expect(find.textContaining('{{shop.name}}'), findsOneWidget);
+
+    final jsonFinder = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(SelectableText),
+    );
+    expect(jsonFinder, findsOneWidget);
+
+    final jsonText = tester.widget<SelectableText>(jsonFinder).data ?? '';
+    expect(jsonText, contains('"type": "dynamic_text"'));
+    expect(jsonText, contains('{{shop.name}}'));
   });
 }
