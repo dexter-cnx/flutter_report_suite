@@ -18,8 +18,8 @@ env:
   FLUTTER_VERSION: '3.32.7'
 
 jobs:
-  report-engine:
-    name: report_engine • analyze + test
+  report-engine-quality:
+    name: report_engine • format + analyze + test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -40,14 +40,48 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
       - name: Analyze
         run: flutter analyze
 
       - name: Run tests
         run: flutter test --coverage --reporter expanded
 
+  report-engine-sunmi-quality:
+    name: report_engine_sunmi • format + analyze + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: packages/report_engine_sunmi
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test --reporter expanded
+
   designer-quality:
-    name: designer • analyze + test
+    name: designer • format + analyze + test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -68,11 +102,54 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
       - name: Analyze
         run: flutter analyze
 
       - name: Run tests
         run: flutter test --coverage --reporter expanded
+
+  example-quality:
+    name: report_engine example • format + analyze + test + apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: packages/report_engine/example
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test --reporter expanded
+
+      - name: Build Android APK
+        run: flutter build apk --debug
 
   web-build:
     name: build • web
