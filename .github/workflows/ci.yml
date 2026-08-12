@@ -115,7 +115,20 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Check formatting
-        run: dart format --output=none --set-exit-if-changed lib test
+        id: format
+        shell: bash
+        run: |
+          dart format lib test
+          git diff --exit-code -- lib test
+      - name: Upload formatted designer files
+        if: failure() && steps.format.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-designer
+          path: |
+            apps/designer/lib
+            apps/designer/test
+          if-no-files-found: error
       - name: Analyze
         run: flutter analyze
       - name: Run tests

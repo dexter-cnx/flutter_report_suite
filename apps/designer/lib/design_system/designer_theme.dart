@@ -38,7 +38,7 @@ abstract final class DesignerTheme {
         isDense: true,
         filled: true,
         fillColor: DesignerColors.panelBackground,
-        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         border: inputBorder,
         enabledBorder: inputBorder,
         disabledBorder: OutlineInputBorder(

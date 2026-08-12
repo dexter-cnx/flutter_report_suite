@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 
 import '../controllers/designer_document_controller.dart';
+import '../design_system/design_system.dart';
 import '../services/template_file_exporter.dart';
 
 class DesignerPage extends StatefulWidget {
@@ -36,6 +37,7 @@ class _DesignerPageState extends State<DesignerPage> {
   late final DesignerDocumentController _document;
   String? _templateId;
   bool _storageReady = false;
+  bool _mediumElementsVisible = false;
 
   final Map<String, dynamic> _mockData = {
     'shop': {'name': 'ร้าน Dexter Coffee', 'branch': 'นิมมาน'},
@@ -66,70 +68,150 @@ class _DesignerPageState extends State<DesignerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.sizeOf(context).width > 900;
+    final width = MediaQuery.sizeOf(context).width;
+    final desktop = width >= DesignerLayout.compactDesktopBreakpoint;
+    final medium = width >= DesignerLayout.collapsiblePanelBreakpoint;
+
     return KeyboardListener(
       focusNode: _keyboardFocus,
       autofocus: true,
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            _templateId == null
-                ? 'Report Designer'
-                : 'Report Designer — $_templateId',
-          ),
-          actions: [
-            IconButton(
-              tooltip: 'Undo',
-              onPressed: _document.canUndo ? _undo : null,
-              icon: const Icon(Icons.undo),
-            ),
-            IconButton(
-              tooltip: 'Redo',
-              onPressed: _document.canRedo ? _redo : null,
-              icon: const Icon(Icons.redo),
-            ),
-            IconButton(
-              tooltip: 'Preview PDF',
-              onPressed: _previewPdf,
-              icon: const Icon(Icons.picture_as_pdf),
-            ),
-            PopupMenuButton<String>(
-              tooltip: 'Template actions',
-              onSelected: _handleTemplateAction,
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'new', child: Text('New')),
-                PopupMenuItem(value: 'save', child: Text('Save')),
-                PopupMenuItem(value: 'saveAs', child: Text('Save As')),
-                PopupMenuItem(value: 'rename', child: Text('Rename')),
-                PopupMenuItem(value: 'load', child: Text('Load')),
-                PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
-                PopupMenuItem(value: 'delete', child: Text('Delete')),
-                PopupMenuDivider(),
-                PopupMenuItem(value: 'import', child: Text('Import JSON')),
-                PopupMenuItem(value: 'export', child: Text('Export JSON')),
-                PopupMenuItem(value: 'share', child: Text('Share JSON')),
-                PopupMenuItem(value: 'json', child: Text('View JSON')),
-              ],
-            ),
-          ],
+        body: SafeArea(
+          child: desktop
+              ? _desktopWorkspace()
+              : medium
+                  ? _mediumWorkspace()
+                  : _compactWorkspace(),
         ),
-        body: isWide
-            ? Row(children: [_leftPanel(), _canvas(), _rightPanel()])
-            : Column(
-                children: [
-                  _canvas(),
-                  SizedBox(
-                    height: 270,
-                    child: Row(
-                      children: [
-                        Expanded(child: _leftPanel(expandWidth: true)),
-                        Expanded(child: _rightPanel(expandWidth: true)),
-                      ],
-                    ),
-                  ),
-                ],
+      ),
+    );
+  }
+
+  Widget _desktopWorkspace() {
+    return DesignerAppShell(
+      toolbar: _toolbar(),
+      leftPanel: _leftPanel(expandWidth: true),
+      workspace: _canvas(),
+      rightPanel: _rightPanel(expandWidth: true),
+      statusBar: _statusBar(),
+    );
+  }
+
+  Widget _mediumWorkspace() {
+    return DesignerAppShell(
+      toolbar: _toolbar(showElementsToggle: true),
+      leftPanel: _mediumElementsVisible ? _leftPanel(expandWidth: true) : null,
+      workspace: _canvas(),
+      rightPanel: _rightPanel(expandWidth: true),
+      statusBar: _statusBar(),
+    );
+  }
+
+  Widget _compactWorkspace() {
+    return Column(
+      children: [
+        SizedBox(
+          height: DesignerLayout.topToolbarHeight,
+          child: _toolbar(),
+        ),
+        Expanded(child: _canvas()),
+        SizedBox(
+          height: 270,
+          child: Row(
+            children: [
+              Expanded(child: _leftPanel(expandWidth: true)),
+              Expanded(child: _rightPanel(expandWidth: true)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statusBar() {
+    final paper = _document.paper;
+    final widthMm = _number(paper['widthMm'], fallback: 80);
+    final heightMm = paper['autoHeight'] == true
+        ? 200.0
+        : _number(paper['heightMm'], fallback: 200);
+
+    return DesignerStatusBar(
+      leading: Text(
+        '${paper['type']?.toString().toUpperCase() ?? 'PDF'} · '
+        '${widthMm.toStringAsFixed(1)} × ${heightMm.toStringAsFixed(1)} mm',
+      ),
+      center: const Text('5 mm snap grid · rulers in mm'),
+      trailing: ZoomControl(
+        value: _document.zoom,
+        onChanged: (value) => setState(() => _document.setZoom(value)),
+      ),
+    );
+  }
+
+  Widget _toolbar({bool showElementsToggle = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: DesignerSpacing.md),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _templateId == null
+                  ? 'Report Designer'
+                  : 'Report Designer — $_templateId',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: DesignerTypography.appTitle,
+            ),
+          ),
+          if (showElementsToggle) ...[
+            ToolbarButton(
+              icon: Icons.view_sidebar_outlined,
+              tooltip: 'Toggle Elements',
+              selected: _mediumElementsVisible,
+              onPressed: () => setState(
+                () => _mediumElementsVisible = !_mediumElementsVisible,
               ),
+            ),
+            const SizedBox(width: DesignerSpacing.sm),
+          ],
+          ToolbarButton(
+            icon: Icons.undo,
+            tooltip: 'Undo',
+            onPressed: _document.canUndo ? _undo : null,
+          ),
+          const SizedBox(width: DesignerSpacing.xs),
+          ToolbarButton(
+            icon: Icons.redo,
+            tooltip: 'Redo',
+            onPressed: _document.canRedo ? _redo : null,
+          ),
+          const SizedBox(width: DesignerSpacing.sm),
+          ToolbarButton(
+            icon: Icons.picture_as_pdf,
+            tooltip: 'Preview PDF',
+            onPressed: _previewPdf,
+          ),
+          const SizedBox(width: DesignerSpacing.sm),
+          PopupMenuButton<String>(
+            tooltip: 'Template actions',
+            onSelected: _handleTemplateAction,
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'new', child: Text('New')),
+              PopupMenuItem(value: 'save', child: Text('Save')),
+              PopupMenuItem(value: 'saveAs', child: Text('Save As')),
+              PopupMenuItem(value: 'rename', child: Text('Rename')),
+              PopupMenuItem(value: 'load', child: Text('Load')),
+              PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
+              PopupMenuItem(value: 'delete', child: Text('Delete')),
+              PopupMenuDivider(),
+              PopupMenuItem(value: 'import', child: Text('Import JSON')),
+              PopupMenuItem(value: 'export', child: Text('Export JSON')),
+              PopupMenuItem(value: 'share', child: Text('Share JSON')),
+              PopupMenuItem(value: 'json', child: Text('View JSON')),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -137,75 +219,67 @@ class _DesignerPageState extends State<DesignerPage> {
   Widget _leftPanel({bool expandWidth = false}) {
     final paper = _document.paper;
     final paperType = paper['type']?.toString() ?? 'thermal';
-    return SizedBox(
-      width: expandWidth ? null : 190,
-      child: Material(
-        color: Colors.grey.shade100,
-        child: ListView(
-          children: [
-            const ListTile(
-              title: Text(
-                'Add Element',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+
+    return Material(
+      color: DesignerColors.panelBackground,
+      child: ListView(
+        children: [
+          const PanelHeader(title: 'Elements'),
+          _addButton('Text', Icons.text_fields, 'text'),
+          _addButton('Dynamic {{field}}', Icons.data_object, 'dynamic_text'),
+          _addButton('Line', Icons.horizontal_rule, 'line'),
+          _addButton('Table {{items}}', Icons.table_chart, 'table'),
+          _addButton('QR Code', Icons.qr_code, 'qrcode'),
+          _addButton('Barcode', Icons.view_week, 'barcode'),
+          const Divider(height: 1),
+          const PanelHeader(title: 'Document'),
+          Padding(
+            padding: const EdgeInsets.all(DesignerSpacing.md),
+            child: PropertyDropdown<String>(
+              value: _validPaperType(paperType),
+              label: 'Paper Type',
+              items: const [
+                DropdownMenuItem(value: 'thermal', child: Text('Thermal')),
+                DropdownMenuItem(value: 'a4', child: Text('A4')),
+                DropdownMenuItem(value: 'pdf', child: Text('PDF')),
+              ],
+              onChanged: _changePaperType,
             ),
-            _addButton('Text', Icons.text_fields, 'text'),
-            _addButton('Dynamic {{field}}', Icons.data_object, 'dynamic_text'),
-            _addButton('Line', Icons.horizontal_rule, 'line'),
-            _addButton('Table {{items}}', Icons.table_chart, 'table'),
-            _addButton('QR Code', Icons.qr_code, 'qrcode'),
-            _addButton('Barcode', Icons.view_week, 'barcode'),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: DropdownButtonFormField<String>(
-                // Flutter 3.32.7 still requires `value` here.
-                // ignore: deprecated_member_use
-                value: _validPaperType(paperType),
-                decoration: const InputDecoration(labelText: 'Paper Type'),
-                items: const [
-                  DropdownMenuItem(value: 'thermal', child: Text('Thermal')),
-                  DropdownMenuItem(value: 'a4', child: Text('A4')),
-                  DropdownMenuItem(value: 'pdf', child: Text('PDF')),
-                ],
-                onChanged: _changePaperType,
-              ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: DesignerSpacing.md,
             ),
-            const SizedBox(height: 12),
-            ListTile(
-              dense: true,
-              title: Text(
-                'Paper: ${_number(paper['widthMm']).toStringAsFixed(1)} mm',
-              ),
+            child: Text(
+              'Paper width ${_number(paper['widthMm']).toStringAsFixed(1)} mm',
+              style: DesignerTypography.helper,
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text('Zoom ${(_document.zoom * 100).round()}%'),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              DesignerSpacing.sm,
+              DesignerSpacing.sm,
+              DesignerSpacing.sm,
+              DesignerSpacing.md,
             ),
-            Slider(
+            child: Slider(
               value: _document.zoom,
               min: 0.5,
               max: 2,
               divisions: 15,
               onChanged: (value) => setState(() => _document.setZoom(value)),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Text(
-                '5 mm snap grid • rulers in mm',
-                style: TextStyle(fontSize: 11),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _addButton(String label, IconData icon, String type) => ListTile(
         dense: true,
-        leading: Icon(icon, size: 18),
-        title: Text(label, style: const TextStyle(fontSize: 12)),
+        minVerticalPadding: 0,
+        leading: Icon(icon, size: 18, color: DesignerColors.textSecondary),
+        title: Text(label, style: DesignerTypography.body),
         onTap: () => _addElement(type),
       );
 
@@ -217,109 +291,44 @@ class _DesignerPageState extends State<DesignerPage> {
         : _number(paper['heightMm'], fallback: 200);
     final scale = _canvasScale * _document.zoom;
 
-    return Expanded(
-      flex: 3,
-      child: ColoredBox(
-        color: Colors.grey.shade300,
-        child: InteractiveViewer(
-          scaleEnabled: false,
-          boundaryMargin: const EdgeInsets.all(120),
-          child: Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _verticalRuler(heightMm, scale),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
+    return CanvasViewport(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CanvasRuler(
+            axis: CanvasRulerAxis.vertical,
+            lengthMm: heightMm,
+            scale: scale,
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CanvasRuler(
+                axis: CanvasRulerAxis.horizontal,
+                lengthMm: widthMm,
+                scale: scale,
+              ),
+              CanvasPage(
+                width: widthMm * scale,
+                height: heightMm * scale,
+                child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    _horizontalRuler(widthMm, scale),
-                    Container(
-                      width: widthMm * scale,
-                      height: heightMm * scale,
-                      color: Colors.white,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          _verticalCenterGuide(widthMm, scale),
-                          _horizontalCenterGuide(heightMm, scale),
-                          ..._document.elements.map(
-                            (element) => _positionedElement(
-                              element,
-                              scale,
-                              widthMm,
-                            ),
-                          ),
-                        ],
+                    const Positioned.fill(child: CanvasGuideOverlay()),
+                    ..._document.elements.map(
+                      (element) => _positionedElement(
+                        element,
+                        scale,
+                        widthMm,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _verticalCenterGuide(double widthMm, double scale) => Positioned(
-        left: widthMm * scale / 2,
-        top: 0,
-        bottom: 0,
-        child: Container(
-          width: 1,
-          color: Colors.lightBlueAccent.withValues(alpha: 0.4),
-        ),
-      );
-
-  Widget _horizontalCenterGuide(double heightMm, double scale) => Positioned(
-        top: heightMm * scale / 2,
-        left: 0,
-        right: 0,
-        child: Container(
-          height: 1,
-          color: Colors.lightBlueAccent.withValues(alpha: 0.4),
-        ),
-      );
-
-  Widget _horizontalRuler(double widthMm, double scale) {
-    final marks = (widthMm / 10).floor();
-    return SizedBox(
-      width: widthMm * scale,
-      height: 22,
-      child: Stack(
-        children: List.generate(
-          marks + 1,
-          (index) => Positioned(
-            left: index * 10 * scale,
-            child: Text(
-              '${index * 10}',
-              style: const TextStyle(fontSize: 9),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _verticalRuler(double heightMm, double scale) {
-    final marks = (heightMm / 10).floor();
-    return SizedBox(
-      width: 28,
-      height: heightMm * scale + 22,
-      child: Stack(
-        children: List.generate(
-          marks + 1,
-          (index) => Positioned(
-            top: 22 + index * 10 * scale,
-            right: 2,
-            child: Text(
-              '${index * 10}',
-              style: const TextStyle(fontSize: 9),
-            ),
-          ),
-        ),
+        ],
       ),
     );
   }
@@ -330,50 +339,53 @@ class _DesignerPageState extends State<DesignerPage> {
     double widthMm,
   ) {
     final selected = element['id'] == _document.selectedId;
+    final elementWidth = _number(element['w'], fallback: 20) * scale;
+    final elementHeight = _number(element['h'], fallback: 8) * scale;
+
     return Positioned(
       left: _number(element['x']) * scale,
       top: _number(element['y']) * scale,
-      child: GestureDetector(
-        onTap: () => setState(
-          () => _document.selectedId = element['id']?.toString(),
-        ),
-        onPanStart: (_) {
-          setState(() {
-            _document.selectedId = element['id']?.toString();
-            _document.beginInteraction();
-          });
-        },
-        onPanUpdate: (details) {
-          final current = _document.selectedElement;
-          if (current == null) return;
-          final elementWidth = _number(current['w']);
-          final maxX = (widthMm - elementWidth).clamp(0, widthMm).toDouble();
-          final x = (_number(current['x']) + details.delta.dx / scale)
-              .clamp(0, maxX)
-              .toDouble();
-          final y = (_number(current['y']) + details.delta.dy / scale)
-              .clamp(0, 1000)
-              .toDouble();
-          setState(() => _document.moveSelectedInteractive(x, y));
-        },
-        onPanEnd: (_) {
-          setState(() => _document.endInteraction());
-        },
-        onPanCancel: () {
-          setState(() => _document.endInteraction());
-        },
-        child: Container(
-          width: _number(element['w'], fallback: 20) * scale,
-          height: _number(element['h'], fallback: 8) * scale,
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: selected ? Colors.blue : Colors.grey.shade300,
-              width: selected ? 2 : 0.5,
-            ),
-            color: selected ? Colors.blue.withValues(alpha: 0.08) : null,
+      child: CanvasSelectionOverlay(
+        selected: selected,
+        child: GestureDetector(
+          onTap: () => setState(
+            () => _document.selectedId = element['id']?.toString(),
           ),
-          child: _elementPreview(element),
+          onPanStart: (_) {
+            setState(() {
+              _document.selectedId = element['id']?.toString();
+              _document.beginInteraction();
+            });
+          },
+          onPanUpdate: (details) {
+            final current = _document.selectedElement;
+            if (current == null) return;
+            final currentWidth = _number(current['w']);
+            final maxX = (widthMm - currentWidth).clamp(0, widthMm).toDouble();
+            final x = (_number(current['x']) + details.delta.dx / scale)
+                .clamp(0, maxX)
+                .toDouble();
+            final y = (_number(current['y']) + details.delta.dy / scale)
+                .clamp(0, 1000)
+                .toDouble();
+            setState(() => _document.moveSelectedInteractive(x, y));
+          },
+          onPanEnd: (_) => setState(_document.endInteraction),
+          onPanCancel: () => setState(_document.endInteraction),
+          child: Container(
+            width: elementWidth,
+            height: elementHeight,
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              border: selected
+                  ? null
+                  : Border.all(
+                      color: DesignerColors.borderDefault,
+                      width: 0.5,
+                    ),
+            ),
+            child: _elementPreview(element),
+          ),
         ),
       ),
     );
@@ -417,104 +429,113 @@ class _DesignerPageState extends State<DesignerPage> {
   Widget _rightPanel({bool expandWidth = false}) {
     final selected = _document.selectedElement;
     if (selected == null) {
-      return SizedBox(
-        width: expandWidth ? null : 310,
-        child: Material(
-          color: Colors.grey.shade50,
-          child: const Center(child: Text('Select an element to edit')),
+      return const Material(
+        color: DesignerColors.panelBackground,
+        child: Column(
+          children: [
+            PanelHeader(title: 'Inspector'),
+            Expanded(child: Center(child: Text('Select an element to edit'))),
+          ],
         ),
       );
     }
 
     final style = _style(selected);
-    return SizedBox(
-      width: expandWidth ? null : 310,
-      child: Material(
-        color: Colors.grey.shade50,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: ListView(
-            children: [
-              const Text(
-                'Properties',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                key: ValueKey('key-${selected['id']}-${selected['key']}'),
-                initialValue: selected['key']?.toString() ?? '',
-                decoration: const InputDecoration(labelText: 'Key / Text'),
-                onFieldSubmitted: (value) => setState(
-                  () => _document.updateSelected('key', value),
+    return Material(
+      color: DesignerColors.panelBackground,
+      child: Column(
+        children: [
+          const PanelHeader(title: 'Inspector'),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(DesignerSpacing.md),
+              children: [
+                TextFormField(
+                  key: ValueKey('key-${selected['id']}-${selected['key']}'),
+                  initialValue: selected['key']?.toString() ?? '',
+                  decoration: const InputDecoration(labelText: 'Key / Text'),
+                  onFieldSubmitted: (value) => setState(
+                    () => _document.updateSelected('key', value),
+                  ),
                 ),
-              ),
-              Row(
-                children: [
-                  Expanded(child: _numberField(selected, 'x', 'X')),
-                  const SizedBox(width: 8),
-                  Expanded(child: _numberField(selected, 'y', 'Y')),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(child: _numberField(selected, 'w', 'W')),
-                  const SizedBox(width: 8),
-                  Expanded(child: _numberField(selected, 'h', 'H')),
-                ],
-              ),
-              Row(
-                children: [
-                  const Text('Font'),
-                  Expanded(
-                    child: Slider(
-                      value: _number(style['fontSize'], fallback: 10)
-                          .clamp(6, 30)
-                          .toDouble(),
-                      min: 6,
-                      max: 30,
-                      onChanged: (value) => setState(
-                        () => _document.updateSelectedStyle('fontSize', value),
+                const SizedBox(height: DesignerSpacing.sm),
+                Row(
+                  children: [
+                    Expanded(child: _numberField(selected, 'x', 'X')),
+                    const SizedBox(width: DesignerSpacing.sm),
+                    Expanded(child: _numberField(selected, 'y', 'Y')),
+                  ],
+                ),
+                const SizedBox(height: DesignerSpacing.sm),
+                Row(
+                  children: [
+                    Expanded(child: _numberField(selected, 'w', 'W')),
+                    const SizedBox(width: DesignerSpacing.sm),
+                    Expanded(child: _numberField(selected, 'h', 'H')),
+                  ],
+                ),
+                Row(
+                  children: [
+                    const Text('Font'),
+                    Expanded(
+                      child: Slider(
+                        value: _number(style['fontSize'], fallback: 10)
+                            .clamp(6, 30)
+                            .toDouble(),
+                        min: 6,
+                        max: 30,
+                        onChanged: (value) => setState(
+                          () => _document.updateSelectedStyle(
+                            'fontSize',
+                            value,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Bold'),
-                value: style['bold'] == true,
-                onChanged: (value) => setState(
-                  () => _document.updateSelectedStyle('bold', value == true),
+                  ],
                 ),
-              ),
-              DropdownButtonFormField<String>(
-                // Flutter 3.32.7 still requires `value` here.
-                // ignore: deprecated_member_use
-                value: _validAlignment(style['align']),
-                decoration: const InputDecoration(labelText: 'Alignment'),
-                items: const [
-                  DropdownMenuItem(value: 'left', child: Text('Left')),
-                  DropdownMenuItem(value: 'center', child: Text('Center')),
-                  DropdownMenuItem(value: 'right', child: Text('Right')),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Bold'),
+                  value: style['bold'] == true,
+                  onChanged: (value) => setState(
+                    () => _document.updateSelectedStyle(
+                      'bold',
+                      value == true,
+                    ),
+                  ),
+                ),
+                DropdownButtonFormField<String>(
+                  // Flutter 3.32.7 still requires `value` here.
+                  // ignore: deprecated_member_use
+                  value: _validAlignment(style['align']),
+                  decoration: const InputDecoration(labelText: 'Alignment'),
+                  items: const [
+                    DropdownMenuItem(value: 'left', child: Text('Left')),
+                    DropdownMenuItem(value: 'center', child: Text('Center')),
+                    DropdownMenuItem(value: 'right', child: Text('Right')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(
+                      () => _document.updateSelectedStyle('align', value),
+                    );
+                  },
+                ),
+                if (selected['type'] == 'table') ...[
+                  const Divider(height: 28),
+                  _tableColumnEditor(selected),
                 ],
-                onChanged: (value) {
-                  if (value == null) return;
-                  setState(() => _document.updateSelectedStyle('align', value));
-                },
-              ),
-              if (selected['type'] == 'table') ...[
-                const Divider(height: 28),
-                _tableColumnEditor(selected),
+                const SizedBox(height: DesignerSpacing.lg),
+                FilledButton.tonalIcon(
+                  icon: const Icon(Icons.delete),
+                  label: const Text('Delete element'),
+                  onPressed: () => setState(_document.deleteSelected),
+                ),
               ],
-              const SizedBox(height: 16),
-              FilledButton.tonalIcon(
-                icon: const Icon(Icons.delete),
-                label: const Text('Delete element'),
-                onPressed: () => setState(_document.deleteSelected),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
