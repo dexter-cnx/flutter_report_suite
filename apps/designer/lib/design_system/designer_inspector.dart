@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'designer_colors.dart';
 import 'designer_controls.dart';
 import 'designer_spacing.dart';
-import 'designer_typography.dart';
 
 class DesignerInspector extends StatelessWidget {
   const DesignerInspector({
@@ -149,7 +148,9 @@ class DesignerInspector extends StatelessWidget {
                             child: Text('Center'),
                           ),
                           DropdownMenuItem(
-                              value: 'right', child: Text('Right')),
+                            value: 'right',
+                            child: Text('Right'),
+                          ),
                         ],
                         onChanged: (value) {
                           if (value != null) onAlignmentChanged(value);
