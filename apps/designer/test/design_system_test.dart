@@ -56,6 +56,45 @@ void main() {
     expect(find.text('Transform content'), findsNothing);
   });
 
+  testWidgets('PropertyInput follows rebuilt model values', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        const SizedBox(
+          width: 220,
+          child: PropertyInput(
+            fieldId: 'content',
+            initialValue: 'First value',
+            label: 'Content',
+          ),
+        ),
+      ),
+    );
+
+    EditableText editable = tester.widget(find.byType(EditableText));
+    expect(editable.controller.text, 'First value');
+    expect(
+      tester.getSize(find.byType(TextFormField)).height,
+      DesignerLayout.compactControlHeight,
+    );
+
+    await tester.pumpWidget(
+      subject(
+        const SizedBox(
+          width: 220,
+          child: PropertyInput(
+            fieldId: 'content',
+            initialValue: 'Undo value',
+            label: 'Content',
+          ),
+        ),
+      ),
+    );
+
+    editable = tester.widget(find.byType(EditableText));
+    expect(editable.controller.text, 'Undo value');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('ZoomControl disables buttons at bounds', (tester) async {
     double? changed;
     await tester.pumpWidget(
