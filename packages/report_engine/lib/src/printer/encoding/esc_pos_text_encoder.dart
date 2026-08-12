@@ -9,10 +9,6 @@ class EscPosTextEncoder {
   const EscPosTextEncoder();
 
   /// Encodes text as a single-byte payload for the selected Thai strategy.
-  ///
-  /// TIS-620 and CP874 use the same byte positions for Thai letters, marks,
-  /// digits, and the baht sign. CP874-specific punctuation can be added here
-  /// without coupling the encoder to a printer transport.
   List<int> encodePayload(
     String text, {
     required EscPosEncodingConfig config,
@@ -24,7 +20,7 @@ class EscPosTextEncoder {
     }
 
     return text.runes
-        .map((rune) => _encodeRune(rune, config.replacementByte))
+        .map((rune) => _encodeRune(rune, config))
         .toList(growable: false);
   }
 
@@ -54,12 +50,12 @@ class EscPosTextEncoder {
     return bytes;
   }
 
-  int _encodeRune(int rune, int replacementByte) {
+  int _encodeRune(int rune, EscPosEncodingConfig config) {
+    final replacementByte = config.replacementByte;
     if (replacementByte < 0 || replacementByte > 255) {
       throw RangeError.range(replacementByte, 0, 255, 'replacementByte');
     }
 
-    // Printable ASCII plus common control whitespace used in receipt text.
     if (rune <= 0x7F) return rune;
 
     // TIS-620 / CP874 Thai consonants through sara uue.
@@ -67,7 +63,6 @@ class EscPosTextEncoder {
       return 0xA1 + (rune - 0x0E01);
     }
 
-    // Baht sign.
     if (rune == 0x0E3F) return 0xDF;
 
     // Thai vowels, tone marks, punctuation, and Thai digits.
@@ -75,6 +70,36 @@ class EscPosTextEncoder {
       return 0xE0 + (rune - 0x0E40);
     }
 
+    if (config.thaiEncoding == ThaiEncoding.cp874) {
+      final cp874 = _cp874Extension(rune);
+      if (cp874 != null) return cp874;
+    }
+
     return replacementByte;
+  }
+
+  int? _cp874Extension(int rune) {
+    switch (rune) {
+      case 0x20AC: // €
+        return 0x80;
+      case 0x2026: // …
+        return 0x85;
+      case 0x2018: // ‘
+        return 0x91;
+      case 0x2019: // ’
+        return 0x92;
+      case 0x201C: // “
+        return 0x93;
+      case 0x201D: // ”
+        return 0x94;
+      case 0x2022: // •
+        return 0x95;
+      case 0x2013: // –
+        return 0x96;
+      case 0x2014: // —
+        return 0x97;
+      default:
+        return null;
+    }
   }
 }

@@ -66,9 +66,18 @@ void main() {
       );
     });
 
-    test('uses configured replacement byte for unsupported characters', () {
-      const config = EscPosEncodingConfig.cp874(
-        codeTable: 30,
+    test('supports CP874 punctuation extension bytes', () {
+      const config = EscPosEncodingConfig.cp874(codeTable: 30);
+
+      expect(
+        encoder.encodePayload('€…“ไทย”', config: config),
+        <int>[0x80, 0x85, 0x93, 0xE4, 0xB7, 0xC2, 0x94],
+      );
+    });
+
+    test('TIS-620 replaces characters outside its repertoire', () {
+      const config = EscPosEncodingConfig.tis620(
+        codeTable: 26,
         replacementByte: 0x3F,
       );
 

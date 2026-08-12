@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../models/report_template.dart';
 import '../services/report_value_resolver.dart';
+import 'transport/bluetooth_esc_pos_transport.dart';
+import 'transport/esc_pos_transport.dart';
 
 class EscPosPrinterService {
   EscPosPrinterService({ReportValueResolver? resolver})
@@ -33,33 +34,35 @@ class EscPosPrinterService {
     return List.unmodifiable(results);
   }
 
+  /// Backwards-compatible Bluetooth receipt printing entry point.
   Future<void> printReceipt({
     required BluetoothDevice device,
     required Map<String, dynamic> templateJson,
     required Map<String, dynamic> data,
     PaperSize paperSize = PaperSize.mm80,
-  }) async {
-    try {
-      await device.connect(timeout: const Duration(seconds: 10));
-      final services = await device.discoverServices();
-      final characteristic = _findWritableCharacteristic(services);
-      if (characteristic == null) {
-        throw StateError('Bluetooth printer has no writable characteristic.');
-      }
+  }) {
+    return printReceiptWithTransport(
+      transport: BluetoothEscPosTransport(device),
+      templateJson: templateJson,
+      data: data,
+      paperSize: paperSize,
+    );
+  }
 
-      final bytes = await _buildTemplateBytes(
-        template: ReportTemplate.fromJson(templateJson),
-        data: data,
-        paperSize: paperSize,
-      );
-      await _writeChunks(characteristic, bytes);
-    } finally {
-      try {
-        await device.disconnect();
-      } catch (_) {
-        // The connection may already be closed by the printer.
-      }
-    }
+  /// Renders a receipt independently from the connection mechanism and sends
+  /// the resulting bytes through the supplied transport adapter.
+  Future<void> printReceiptWithTransport({
+    required EscPosTransport transport,
+    required Map<String, dynamic> templateJson,
+    required Map<String, dynamic> data,
+    PaperSize paperSize = PaperSize.mm80,
+  }) async {
+    final bytes = await _buildTemplateBytes(
+      template: ReportTemplate.fromJson(templateJson),
+      data: data,
+      paperSize: paperSize,
+    );
+    await transport.send(bytes);
   }
 
   Future<List<int>> buildQuickReceipt({
@@ -127,20 +130,6 @@ class EscPosPrinterService {
     return bytes;
   }
 
-  BluetoothCharacteristic? _findWritableCharacteristic(
-    List<BluetoothService> services,
-  ) {
-    for (final service in services) {
-      for (final characteristic in service.characteristics) {
-        if (characteristic.properties.write ||
-            characteristic.properties.writeWithoutResponse) {
-          return characteristic;
-        }
-      }
-    }
-    return null;
-  }
-
   Future<List<int>> _buildTemplateBytes({
     required ReportTemplate template,
     required Map<String, dynamic> data,
@@ -195,21 +184,6 @@ class EscPosPrinterService {
 
     bytes.addAll(generator.cut());
     return bytes;
-  }
-
-  Future<void> _writeChunks(
-    BluetoothCharacteristic characteristic,
-    List<int> bytes,
-  ) async {
-    const chunkSize = 180;
-    for (var offset = 0; offset < bytes.length; offset += chunkSize) {
-      final end = (offset + chunkSize).clamp(0, bytes.length).toInt();
-      await characteristic.write(
-        Uint8List.fromList(bytes.sublist(offset, end)),
-        withoutResponse: characteristic.properties.writeWithoutResponse,
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 40));
-    }
   }
 
   PosAlign _posAlign(String? alignment) {
