@@ -114,12 +114,22 @@ class _ExampleHomeState extends State<ExampleHome> {
     }
   }
 
-  Future<void> _buildQuickEscPosReceipt() async {
+  Future<void> _buildQuickEscPosReceipt({
+    EscPosEncodingConfig? encodingConfig,
+    String label = 'legacy',
+  }) async {
     try {
-      final bytes = await _escPos.buildQuickReceipt(data: _mockData);
+      final bytes = await _escPos.buildQuickReceipt(
+        data: _mockData,
+        encodingConfig: encodingConfig,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ESC/POS receipt generated: ${bytes.length} bytes')),
+        SnackBar(
+          content: Text(
+            'ESC/POS $label receipt generated: ${bytes.length} bytes',
+          ),
+        ),
       );
     } catch (error) {
       _showError('Unable to generate ESC/POS receipt: $error');
@@ -168,10 +178,13 @@ class _ExampleHomeState extends State<ExampleHome> {
               "  templateJson: template,\n"
               "  data: data,\n"
               ");\n"
-              "await printer.sharePdf(\n"
-              "  templateJson: template,\n"
-              "  data: data,\n"
-              ");",
+              "\n"
+              "// ESC/POS Thai code-table numbers are printer-specific.\n"
+              "const thai = EscPosEncodingConfig.cp874(\n"
+              "  codeTable: printerSpecificCodeTable,\n"
+              ");\n"
+              "// Or avoid code-page dependency entirely:\n"
+              "const rasterThai = EscPosEncodingConfig.raster();",
               style: TextStyle(fontFamily: 'monospace', fontSize: 12),
             ),
           ),
@@ -201,8 +214,16 @@ class _ExampleHomeState extends State<ExampleHome> {
           ),
           const SizedBox(height: 8),
           OutlinedButton(
-            onPressed: _buildQuickEscPosReceipt,
-            child: const Text('Generate ESC/POS quick receipt'),
+            onPressed: () => _buildQuickEscPosReceipt(),
+            child: const Text('Generate legacy ESC/POS quick receipt'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () => _buildQuickEscPosReceipt(
+              encodingConfig: const EscPosEncodingConfig.raster(),
+              label: 'Thai raster',
+            ),
+            child: const Text('Generate Thai raster ESC/POS receipt'),
           ),
           const SizedBox(height: 8),
           OutlinedButton(
@@ -230,7 +251,7 @@ class _ExampleHomeState extends State<ExampleHome> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Physical Thai ESC/POS output remains hardware-dependent and is not claimed by this example.',
+            'Physical Thai ESC/POS output remains hardware-dependent. Configure a code-table number from the target printer manual or use raster fallback, then validate on the actual printer before claiming compatibility.',
           ),
         ],
       ),
