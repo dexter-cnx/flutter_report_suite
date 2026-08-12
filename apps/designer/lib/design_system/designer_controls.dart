@@ -290,7 +290,9 @@ class PropertyToggle extends StatelessWidget {
       height: DesignerLayout.compactControlHeight,
       child: Row(
         children: [
-          Expanded(child: Text(label, style: DesignerTypography.controlLabel)),
+          Expanded(
+            child: Text(label, style: DesignerTypography.controlLabel),
+          ),
           Checkbox(
             value: value,
             visualDensity: VisualDensity.compact,
