@@ -195,7 +195,8 @@ void main() {
         findsOneWidget);
     expect(find.text('TABLE COLUMNS'), findsOneWidget);
     expect(find.byType(TableColumnEditor), findsOneWidget);
-    expect(find.byKey(const ValueKey('table-add-column-button')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('table-add-column-button')), findsOneWidget);
     expect(find.byTooltip('Remove column'), findsWidgets);
 
     final before = find.byType(TableColumnCard).evaluate().length;
