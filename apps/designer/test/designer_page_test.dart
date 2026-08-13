@@ -23,6 +23,8 @@ void main() {
 
     expect(find.text('Report Designer'), findsOneWidget);
     expect(find.text('Elements'), findsOneWidget);
+    expect(find.text('Layers'), findsOneWidget);
+    expect(find.text('Data'), findsOneWidget);
     expect(find.text('Inspector'), findsOneWidget);
     expect(find.text('Dynamic {{field}}'), findsOneWidget);
     expect(find.text('Table {{items}}'), findsOneWidget);
@@ -34,6 +36,7 @@ void main() {
     expect(find.byTooltip('Zoom in'), findsOneWidget);
     expect(find.textContaining('5 mm snap grid'), findsOneWidget);
     expect(find.byType(DesignerAppShell), findsOneWidget);
+    expect(find.byType(DesignerLeftPanel), findsOneWidget);
     expect(find.byType(CanvasViewport), findsOneWidget);
     expect(find.byType(CanvasPage), findsOneWidget);
     expect(find.byType(CanvasRuler), findsNWidgets(2));
@@ -60,6 +63,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Elements'), findsOneWidget);
+    expect(find.byType(DesignerLeftPanel), findsOneWidget);
   });
 
   testWidgets('desktop shell applies the normalized panel dimensions',
@@ -69,13 +73,13 @@ void main() {
     final shell = find.byType(DesignerAppShell);
     expect(shell, findsOneWidget);
 
-    final elementsHeader = find.widgetWithText(PanelHeader, 'Elements');
+    final leftPanel = find.byType(DesignerLeftPanel);
     final inspectorHeader = find.widgetWithText(PanelHeader, 'Inspector');
-    expect(elementsHeader, findsOneWidget);
+    expect(leftPanel, findsOneWidget);
     expect(inspectorHeader, findsOneWidget);
 
     expect(
-      tester.getSize(elementsHeader).width,
+      tester.getSize(leftPanel).width,
       DesignerLayout.leftPanelWidth,
     );
     expect(
@@ -113,6 +117,71 @@ void main() {
       find.widgetWithIcon(IconButton, Icons.undo),
     );
     expect(undoButton.onPressed, isNotNull);
+  });
+
+  testWidgets('all current element types remain addable through ToolPanelItem',
+      (tester) async {
+    await pumpDesktop(tester);
+
+    const types = [
+      'text',
+      'dynamic_text',
+      'line',
+      'table',
+      'qrcode',
+      'barcode',
+    ];
+
+    for (final type in types) {
+      final tool = find.byKey(ValueKey('tool-$type'));
+      expect(tool, findsOneWidget);
+      expect(find.descendant(of: tool, matching: find.byType(ToolPanelItem)),
+          findsOneWidget);
+      await tester.tap(tool);
+      await tester.pump();
+    }
+
+    await tester.tap(find.byTooltip('Template actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View JSON'));
+    await tester.pumpAndSettle();
+
+    final jsonFinder = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(SelectableText),
+    );
+    final jsonText = tester.widget<SelectableText>(jsonFinder).data ?? '';
+    for (final type in types) {
+      expect(jsonText, contains('"type": "$type"'));
+    }
+  });
+
+  testWidgets('Layers shell reflects current elements and preserves selection',
+      (tester) async {
+    await pumpDesktop(tester);
+
+    await tester.tap(find.byKey(const ValueKey('tool-text')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('left-panel-tab-layers')));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('left-panel-layers-content')),
+        findsOneWidget);
+    expect(find.widgetWithText(PanelHeader, 'Layers'), findsOneWidget);
+    expect(find.text('Sample text'), findsWidgets);
+    expect(find.text('Add Element'), findsNothing);
+  });
+
+  testWidgets('Data shell exposes a capability-appropriate state only',
+      (tester) async {
+    await pumpDesktop(tester);
+
+    await tester.tap(find.byKey(const ValueKey('left-panel-tab-data')));
+    await tester.pump();
+
+    expect(find.text('Data explorer is not available yet'), findsOneWidget);
+    expect(find.byType(ToolPanelItem), findsNothing);
+    expect(find.text('Add Element'), findsNothing);
   });
 
   testWidgets('table selection exposes the normalized column editor',
