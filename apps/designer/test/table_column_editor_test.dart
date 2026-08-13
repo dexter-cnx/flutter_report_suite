@@ -3,7 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:report_designer/design_system/design_system.dart';
 
 void main() {
-  testWidgets('renders model-backed columns and routes actions', (tester) async {
+  testWidgets('renders model-backed columns and routes actions',
+      (tester) async {
     var addCount = 0;
     int? removed;
     (int, int)? moved;
@@ -62,7 +63,8 @@ void main() {
       ),
     );
 
-    expect(find.byKey(const ValueKey('table-columns-empty-state')), findsOneWidget);
+    expect(find.byKey(const ValueKey('table-columns-empty-state')),
+        findsOneWidget);
     expect(find.text('No columns configured'), findsOneWidget);
   });
 }
