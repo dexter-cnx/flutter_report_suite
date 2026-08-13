@@ -64,7 +64,8 @@ void main() {
     expect(find.text('4 bytes rendered by report_engine'), findsOneWidget);
     expect(find.textContaining('1B 40 48 69'), findsOneWidget);
     expect(find.byTooltip('System Print'), findsNothing);
-    expect(find.text('ESC/POS preview · transport not selected'), findsOneWidget);
+    expect(
+        find.text('ESC/POS preview · transport not selected'), findsOneWidget);
   });
 
   testWidgets('routes system print through the injected platform action',
