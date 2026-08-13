@@ -37,9 +37,8 @@ class _TemplateCardState extends State<TemplateCard> {
         : _hovered
             ? DesignerColors.borderStrong
             : DesignerColors.borderDefault;
-    final iconColor = widget.primary
-        ? DesignerColors.primary
-        : DesignerColors.textSecondary;
+    final iconColor =
+        widget.primary ? DesignerColors.primary : DesignerColors.textSecondary;
 
     return Semantics(
       button: true,
