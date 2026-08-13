@@ -4,7 +4,7 @@ Repository: `dexter-cnx/flutter_report_suite`
 
 Reference Flutter toolchain: **Flutter 3.32.7**
 
-Last updated: **2026-08-12**
+Last updated: **2026-08-13**
 
 ## Mission
 
@@ -427,9 +427,9 @@ CI run #65 / run id 31588118361 — ✅ SUCCESS
 All nine jobs passed:
 
 - `report_engine` format + analyze + tests: ✅ PASS
-- `report_engine_sunmi` format + analyze + tests: ✅ PASS
-- Designer format + analyze + tests: ✅ PASS
-- `report_engine/example` format + analyze + tests + Android APK: ✅ PASS
+- `report_engine_sunmi` format/analyze/tests: ✅ PASS
+- Designer format/analyze/tests: ✅ PASS
+- `report_engine/example` format/analyze/tests + Android APK: ✅ PASS
 - Designer Web release build: ✅ PASS
 - Designer Android APK build: ✅ PASS
 - Designer Linux release build: ✅ PASS
@@ -667,11 +667,75 @@ until tested on actual devices.
 
 ---
 
+# Designer Stitch UI modernization
+
+**Status: ✅ P1–P9 COMPLETE — 2026-08-13**
+
+The normalized visual migration plan is tracked in:
+
+```text
+docs/design/IMPLEMENTATION_PLAN.md
+```
+
+Completed merge sequence:
+
+- P1 + P2 tokens/theme/shared controls — PR #12
+- P3 + P4 shell/canvas primitives — PR #13
+- P3 + P4 live Designer migration — PR #14
+- P5 Inspector — PR #15
+- P6 Left panel/Layers/Data shell — PR #16
+- P7 Template Gallery — PR #17
+- P8 Table UX expansion — PR #18, merge `18331aa9d667771ee4878b5e0c34db327bc9f774`
+- P9A PDF/system print preview — PR #19, merge `99e0785c3a4032400c8c519102b5e2c0de5baa32`
+- P9B ESC/POS preview mode — PR #20, merge `9cfd4a3b31f69163c37aea13be4087cfa9e74d15`
+
+P9B final validated head:
+
+```text
+4cd8973b1cc66b32a3173519c877a3c50333267b
+```
+
+Final P9 validation:
+
+```text
+CI run #147 / run id 31685965055 — ✅ SUCCESS
+```
+
+All nine jobs passed.
+
+P9 delivered:
+
+- unified PDF/System Print preview workspace
+- PDF ↔ ESC/POS mode switching
+- actual PDF bytes from existing report engine functionality
+- actual ESC/POS bytes from `EscPosRenderer.renderTemplate()`
+- `ReportTemplate.fromJson(...)` integration with current Designer document/data
+- ESC/POS byte count and bounded hex preview
+- System Print only in PDF mode
+- ESC/POS mode only when a real rendered payload exists
+- thermal-only Designer ESC/POS generation; A4/PDF are not silently mapped to thermal
+- no implicit transport send
+- no invented printer connected/status state
+- no invented cutter/cash-drawer controls
+
+Architecture guardrails remain:
+
+- `EscPosRenderer` is transport-agnostic.
+- Actual sending requires an explicit `EscPosTransport`.
+- Cutter/cash-drawer actions require actual `CutterCapability` / `CashDrawerCapability` implementations.
+- Hardware-dependent compatibility still requires physical evidence.
+
+---
+
 # Current next action
+
+The Designer Stitch modernization plan ends at **P9**, but the **v1.0.0 release actions remain the current project priority until completion evidence is recorded**.
 
 1. Create and push the `v1.0.0` tag.
 2. Create the GitHub Release for `v1.0.0`.
 3. Publish `packages/report_engine` to pub.dev.
 4. Keep `report_engine_sunmi` unpublished until its own release decision and dependency strategy are approved.
 5. Record physical printer validation evidence when hardware becomes available.
-6. Treat Designer visual/UX modernization as post-v1 work so it does not block the validated release baseline.
+6. After the v1 release actions are complete, define the next Designer roadmap scope explicitly; **no P10 is currently defined**.
+
+Do not mark tag/release/pub.dev publication complete without concrete repository/pub.dev evidence.
