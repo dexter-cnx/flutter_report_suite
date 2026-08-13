@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:report_engine/report_engine.dart';
 
+import '../design_system/design_system.dart';
 import 'designer_page.dart';
 
-class TemplateGalleryPage extends StatelessWidget {
+class TemplateGalleryPage extends StatefulWidget {
   const TemplateGalleryPage({super.key});
 
+  @override
+  State<TemplateGalleryPage> createState() => _TemplateGalleryPageState();
+}
+
+class _TemplateGalleryPageState extends State<TemplateGalleryPage> {
   static const _templates = <({String title, String asset, IconData icon})>[
     (
       title: '80mm Receipt',
@@ -29,110 +35,138 @@ class TemplateGalleryPage extends StatelessWidget {
     ),
   ];
 
+  String? _errorMessage;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Report Templates')),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final columns = width >= 1100
-              ? 4
-              : width >= 700
-                  ? 2
-                  : 1;
-          return GridView.count(
-            crossAxisCount: columns,
-            childAspectRatio: columns == 1 ? 2.7 : 1.45,
-            padding: const EdgeInsets.all(20),
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            children: [
-              _newTemplateCard(context),
-              ..._templates.map((item) => _templateCard(context, item)),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _newTemplateCard(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: () => _openDesigner(context),
-        child: const Padding(
-          padding: EdgeInsets.all(12),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_circle_outline, size: 40),
-              SizedBox(height: 8),
-              Text(
-                'Blank Template',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Create a new report from scratch',
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
+      body: SafeArea(
+        child: DesignerAppShell(
+          toolbar: _toolbar(),
+          workspace: _workspace(),
         ),
       ),
     );
   }
 
-  Widget _templateCard(
+  Widget _toolbar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: DesignerSpacing.lg),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Report Templates',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: DesignerTypography.appTitle,
+            ),
+          ),
+          Text(
+            'Choose a starting point',
+            style: DesignerTypography.helper,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _workspace() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = width >= 1100
+            ? 4
+            : width >= 700
+                ? 2
+                : 1;
+
+        return ColoredBox(
+          color: DesignerColors.appBackground,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(DesignerSpacing.xxl),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1240),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Create a report',
+                      style: DesignerTypography.screenTitle,
+                    ),
+                    const SizedBox(height: DesignerSpacing.xs),
+                    const Text(
+                      'Start blank or open a built-in template as an editable working copy.',
+                      style: DesignerTypography.body,
+                    ),
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: DesignerSpacing.lg),
+                      InlineAlert(
+                        key: const ValueKey('gallery-open-error'),
+                        message: _errorMessage!,
+                        severity: InlineAlertSeverity.error,
+                        actionLabel: 'Dismiss',
+                        onAction: () => setState(() => _errorMessage = null),
+                      ),
+                    ],
+                    const SizedBox(height: DesignerSpacing.xxl),
+                    GridView.count(
+                      key: ValueKey('template-gallery-grid-$columns'),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: columns,
+                      childAspectRatio: columns == 1 ? 2.5 : 1.35,
+                      mainAxisSpacing: DesignerSpacing.lg,
+                      crossAxisSpacing: DesignerSpacing.lg,
+                      children: [
+                        TemplateCard(
+                          key: const ValueKey('template-card-blank'),
+                          title: 'Blank Template',
+                          description: 'Create a new report from scratch',
+                          icon: Icons.add,
+                          badge: 'NEW',
+                          primary: true,
+                          onPressed: () => _openDesigner(context),
+                        ),
+                        ..._templates.map(
+                          (item) => TemplateCard(
+                            key: ValueKey('template-card-${item.asset}'),
+                            title: item.title,
+                            description: 'Built-in · opens as editable copy',
+                            icon: item.icon,
+                            badge: 'BUILT-IN',
+                            onPressed: () => _openBuiltIn(context, item),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openBuiltIn(
     BuildContext context,
     ({String title, String asset, IconData icon}) item,
-  ) {
-    return Card(
-      child: InkWell(
-        onTap: () async {
-          try {
-            final template =
-                await TemplateStorageService().loadFromAssets(item.asset);
-            if (!context.mounted) return;
-            _openDesigner(
-              context,
-              initialTemplate: template,
-              workingCopyId: '${template['id'] ?? 'template'}-copy',
-            );
-          } catch (error) {
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Unable to open template: $error')),
-            );
-          }
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(item.icon, size: 40),
-              const SizedBox(height: 8),
-              Text(
-                item.title,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Built-in • opens as editable copy',
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  ) async {
+    try {
+      final template = await TemplateStorageService().loadFromAssets(item.asset);
+      if (!context.mounted) return;
+      _openDesigner(
+        context,
+        initialTemplate: template,
+        workingCopyId: '${template['id'] ?? 'template'}-copy',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Unable to open template: $error');
+    }
   }
 
   void _openDesigner(
