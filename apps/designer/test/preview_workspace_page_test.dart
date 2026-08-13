@@ -46,7 +46,8 @@ void main() {
     expect(find.text('Preview Settings'), findsOneWidget);
     expect(find.text('PDF / System Print'), findsOneWidget);
     expect(find.byKey(const ValueKey('preview-content-stub')), findsOneWidget);
-    expect(find.textContaining('THERMAL · 80.0 mm · auto height'), findsWidgets);
+    expect(
+        find.textContaining('THERMAL · 80.0 mm · auto height'), findsWidgets);
     expect(find.byTooltip('System Print'), findsOneWidget);
   });
 
