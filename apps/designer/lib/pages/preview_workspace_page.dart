@@ -136,17 +136,18 @@ class _PreviewWorkspacePageState extends State<PreviewWorkspacePage> {
                     children: [
                       SegmentedButton<PreviewOutputMode>(
                         key: const ValueKey('preview-output-mode'),
-                        segments: const [
-                          ButtonSegment(
+                        segments: [
+                          const ButtonSegment(
                             value: PreviewOutputMode.pdf,
                             label: Text('PDF'),
                             icon: Icon(Icons.picture_as_pdf_outlined),
                           ),
-                          ButtonSegment(
-                            value: PreviewOutputMode.escPos,
-                            label: Text('ESC/POS'),
-                            icon: Icon(Icons.receipt_long_outlined),
-                          ),
+                          if (widget.escPosBytes.isNotEmpty)
+                            const ButtonSegment(
+                              value: PreviewOutputMode.escPos,
+                              label: Text('ESC/POS'),
+                              icon: Icon(Icons.receipt_long_outlined),
+                            ),
                         ],
                         selected: {_mode},
                         onSelectionChanged: (selection) {
