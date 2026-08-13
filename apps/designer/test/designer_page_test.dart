@@ -135,8 +135,7 @@ void main() {
     for (final type in types) {
       final tool = find.byKey(ValueKey('tool-$type'));
       expect(tool, findsOneWidget);
-      expect(find.descendant(of: tool, matching: find.byType(ToolPanelItem)),
-          findsOneWidget);
+      expect(tester.widget<ToolPanelItem>(tool), isA<ToolPanelItem>());
       await tester.tap(tool);
       await tester.pump();
     }
