@@ -119,9 +119,7 @@ class _PanelModeTab extends StatelessWidget {
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: selected
-                      ? DesignerColors.primary
-                      : Colors.transparent,
+                  color: selected ? DesignerColors.primary : Colors.transparent,
                   width: 2,
                 ),
               ),
