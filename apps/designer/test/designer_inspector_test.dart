@@ -3,7 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:report_designer/design_system/design_system.dart';
 
 void main() {
-  Widget buildInspector({Map<String, dynamic>? element}) {
+  Widget buildInspector({
+    Map<String, dynamic>? element,
+    ValueChanged<double>? onFontSizeSubmitted,
+  }) {
     return MaterialApp(
       theme: DesignerTheme.light(),
       home: Scaffold(
@@ -13,7 +16,7 @@ void main() {
             element: element,
             onContentSubmitted: (_) {},
             onGeometrySubmitted: (_, __) {},
-            onFontSizeSubmitted: (_) {},
+            onFontSizeSubmitted: onFontSizeSubmitted ?? (_) {},
             onBoldChanged: (_) {},
             onAlignmentChanged: (_) {},
             onDelete: () {},
@@ -30,6 +33,26 @@ void main() {
     );
   }
 
+  Map<String, dynamic> textElement({
+    required String id,
+    String key = 'Sample text',
+    double fontSize = 12,
+  }) =>
+      <String, dynamic>{
+        'id': id,
+        'type': 'text',
+        'key': key,
+        'x': 5.0,
+        'y': 10.0,
+        'w': 60.0,
+        'h': 10.0,
+        'style': <String, dynamic>{
+          'fontSize': fontSize,
+          'bold': true,
+          'align': 'center',
+        },
+      };
+
   testWidgets('shows empty inspector state without a selection',
       (tester) async {
     await tester.pumpWidget(buildInspector());
@@ -40,20 +63,7 @@ void main() {
 
   testWidgets('groups supported fields into normalized sections',
       (tester) async {
-    final element = <String, dynamic>{
-      'id': 'text-1',
-      'type': 'text',
-      'key': 'Sample text',
-      'x': 5.0,
-      'y': 10.0,
-      'w': 60.0,
-      'h': 10.0,
-      'style': <String, dynamic>{
-        'fontSize': 12.0,
-        'bold': true,
-        'align': 'center',
-      },
-    };
+    final element = textElement(id: 'text-1');
 
     await tester.pumpWidget(buildInspector(element: element));
 
@@ -68,6 +78,56 @@ void main() {
     expect(find.text('Bold'), findsOneWidget);
     expect(find.text('Alignment'), findsOneWidget);
     expect(find.byKey(const ValueKey('delete-element-button')), findsOneWidget);
+  });
+
+  testWidgets('keys the editable inspector subtree by selected element id',
+      (tester) async {
+    await tester.pumpWidget(
+      buildInspector(element: textElement(id: 'text-1')),
+    );
+
+    expect(
+      find.byKey(const ValueKey('designer-inspector-text-1')),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(
+      buildInspector(element: textElement(id: 'text-2')),
+    );
+
+    expect(
+      find.byKey(const ValueKey('designer-inspector-text-1')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('designer-inspector-text-2')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('accepts only finite font sizes within the supported range',
+      (tester) async {
+    final submitted = <double>[];
+    await tester.pumpWidget(
+      buildInspector(
+        element: textElement(id: 'text-1'),
+        onFontSizeSubmitted: submitted.add,
+      ),
+    );
+
+    final fontSizeInput = tester
+        .widgetList<NumberPropertyInput>(find.byType(NumberPropertyInput))
+        .singleWhere((input) => input.label == 'Font Size');
+
+    fontSizeInput.onSubmitted(double.nan);
+    fontSizeInput.onSubmitted(double.infinity);
+    fontSizeInput.onSubmitted(-1);
+    fontSizeInput.onSubmitted(5.9);
+    fontSizeInput.onSubmitted(30.1);
+    fontSizeInput.onSubmitted(6);
+    fontSizeInput.onSubmitted(30);
+
+    expect(submitted, <double>[6, 30]);
   });
 
   testWidgets('shows table column section only for table elements',
