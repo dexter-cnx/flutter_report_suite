@@ -183,7 +183,7 @@ void main() {
     expect(find.text('Add Element'), findsNothing);
   });
 
-  testWidgets('table selection exposes the normalized column editor',
+  testWidgets('table selection exposes model-backed column editing',
       (tester) async {
     await pumpDesktop(tester);
 
@@ -194,8 +194,14 @@ void main() {
     expect(find.byKey(const ValueKey('inspector-section-table-columns')),
         findsOneWidget);
     expect(find.text('TABLE COLUMNS'), findsOneWidget);
-    expect(find.byTooltip('Add column'), findsOneWidget);
+    expect(find.byType(TableColumnEditor), findsOneWidget);
+    expect(find.byKey(const ValueKey('table-add-column-button')), findsOneWidget);
     expect(find.byTooltip('Remove column'), findsWidgets);
+
+    final before = find.byType(TableColumnCard).evaluate().length;
+    await tester.tap(find.byKey(const ValueKey('table-add-column-button')));
+    await tester.pump();
+    expect(find.byType(TableColumnCard), findsNWidgets(before + 1));
   });
 
   testWidgets('view JSON action contains current template schema',
