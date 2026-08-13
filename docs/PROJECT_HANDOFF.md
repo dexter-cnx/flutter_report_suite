@@ -427,9 +427,9 @@ CI run #65 / run id 31588118361 — ✅ SUCCESS
 All nine jobs passed:
 
 - `report_engine` format + analyze + tests: ✅ PASS
-- `report_engine_sunmi` format + analyze + tests: ✅ PASS
-- Designer format + analyze + tests: ✅ PASS
-- `report_engine/example` format + analyze + tests + Android APK: ✅ PASS
+- `report_engine_sunmi` format/analyze/tests: ✅ PASS
+- Designer format/analyze/tests: ✅ PASS
+- `report_engine/example` format/analyze/tests + Android APK: ✅ PASS
 - Designer Web release build: ✅ PASS
 - Designer Android APK build: ✅ PASS
 - Designer Linux release build: ✅ PASS
@@ -729,12 +729,13 @@ Architecture guardrails remain:
 
 # Current next action
 
-The normalized Designer Stitch plan currently ends at **P9**. **No P10 is defined.**
+The Designer Stitch modernization plan ends at **P9**, but the **v1.0.0 release actions remain the current project priority until completion evidence is recorded**.
 
-Before starting further Designer implementation:
+1. Create and push the `v1.0.0` tag.
+2. Create the GitHub Release for `v1.0.0`.
+3. Publish `packages/report_engine` to pub.dev.
+4. Keep `report_engine_sunmi` unpublished until its own release decision and dependency strategy are approved.
+5. Record physical printer validation evidence when hardware becomes available.
+6. After the v1 release actions are complete, define the next Designer roadmap scope explicitly; **no P10 is currently defined**.
 
-1. Define the next roadmap scope explicitly instead of inventing a P10.
-2. Preserve the full Flutter 3.32.7 CI matrix for the next phase.
-3. Keep physical printer verification as a separate evidence track.
-4. Keep `report_engine_sunmi` release decisions separate from core `report_engine`.
-5. The existing release actions (tag/release/pub.dev) remain valid if they have not already been completed.
+Do not mark tag/release/pub.dev publication complete without concrete repository/pub.dev evidence.
