@@ -128,7 +128,7 @@ class _PanelModeTab extends StatelessWidget {
             ),
             child: Text(
               label,
-              style: DesignerTypography.label.copyWith(
+              style: DesignerTypography.controlLabel.copyWith(
                 color: selected
                     ? DesignerColors.primary
                     : DesignerColors.textSecondary,
@@ -237,7 +237,7 @@ class DesignerPanelStateMessage extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: DesignerTypography.label,
+              style: DesignerTypography.controlLabel,
             ),
             const SizedBox(height: DesignerSpacing.xs),
             Text(
