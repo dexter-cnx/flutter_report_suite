@@ -53,10 +53,12 @@ class EscPosPreviewPanel extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: DesignerColors.panelBackground,
                       border: Border.all(color: DesignerColors.borderDefault),
-                      borderRadius: BorderRadius.circular(DesignerRadius.control),
+                      borderRadius:
+                          BorderRadius.circular(DesignerRadius.control),
                     ),
                     child: SingleChildScrollView(
-                      child: SelectableText(hex, style: DesignerTypography.helper),
+                      child:
+                          SelectableText(hex, style: DesignerTypography.helper),
                     ),
                   ),
                 ),
