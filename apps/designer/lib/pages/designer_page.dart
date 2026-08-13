@@ -960,16 +960,26 @@ class _DesignerPageState extends State<DesignerPage> {
 
   Future<void> _previewPdf() async {
     try {
+      final document = _document.document;
+      final paper = Map<String, dynamic>.from(_document.paper);
       final pdf = await _printer.generatePdf(
-        templateJson: _document.document,
+        templateJson: document,
         data: _mockData,
       );
+      var escPosBytes = const <int>[];
+      if (paper['type']?.toString() == 'thermal') {
+        escPosBytes = await EscPosRenderer().renderTemplate(
+          template: ReportTemplate.fromJson(document),
+          data: _mockData,
+        );
+      }
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => PreviewWorkspacePage(
             pdfBytes: pdf,
-            paper: Map<String, dynamic>.from(_document.paper),
+            escPosBytes: escPosBytes,
+            paper: paper,
             title: _templateId == null
                 ? 'Report Preview'
                 : 'Report Preview — $_templateId',
