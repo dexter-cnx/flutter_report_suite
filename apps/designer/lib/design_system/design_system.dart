@@ -2,6 +2,7 @@ export 'canvas_primitives.dart';
 export 'designer_colors.dart';
 export 'designer_controls.dart';
 export 'designer_elevation.dart';
+export 'designer_inspector.dart';
 export 'designer_layout.dart';
 export 'designer_radius.dart';
 export 'designer_shell.dart';

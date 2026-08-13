@@ -103,6 +103,7 @@ Current working functionality includes:
 - center guides and millimeter rulers
 - 50%–200% zoom
 - drag/move and numeric transform editing
+- normalized collapsible Inspector sections for content, geometry, typography, and table columns
 - table column metadata editing
 - undo/redo and keyboard nudging
 - save/load, Save As, rename, duplicate, delete
@@ -135,6 +136,7 @@ apps/designer/lib/design_system/
 ├── designer_theme.dart
 ├── designer_controls.dart
 ├── designer_shell.dart
+├── designer_inspector.dart
 └── canvas_primitives.dart
 ```
 
@@ -149,7 +151,7 @@ Selection      1 px primary border
 Resize handle  8 px
 ```
 
-The live `DesignerPage` uses the shared shell/canvas primitives rather than duplicating these visual contracts inline:
+The live `DesignerPage` uses the shared shell/canvas/inspector primitives rather than duplicating these visual contracts inline:
 
 ```text
 DesignerAppShell
@@ -160,9 +162,15 @@ DesignerAppShell
 │   ├── CanvasPage
 │   ├── CanvasGuideOverlay
 │   └── CanvasSelectionOverlay
-├── Inspector
+├── DesignerInspector
+│   ├── Content
+│   ├── Geometry
+│   ├── Typography
+│   └── Table Columns (table elements only)
 └── DesignerStatusBar / ZoomControl
 ```
+
+`DesignerInspector` exposes only model-backed fields: content/key, X/Y/W/H, font size, bold, alignment, and table columns. Stitch-only fields are not surfaced until the shared report model can persist and render them.
 
 Responsive behavior is canvas-first:
 

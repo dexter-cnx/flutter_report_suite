@@ -37,6 +37,7 @@ void main() {
     expect(find.byType(CanvasViewport), findsOneWidget);
     expect(find.byType(CanvasPage), findsOneWidget);
     expect(find.byType(CanvasRuler), findsNWidgets(2));
+    expect(find.byType(DesignerInspector), findsOneWidget);
   });
 
   testWidgets('medium layout collapses Elements and preserves safe area',
@@ -92,6 +93,13 @@ void main() {
 
     expect(find.text('Sample text'), findsWidgets);
     expect(find.text('Inspector'), findsOneWidget);
+    expect(find.byType(DesignerInspector), findsOneWidget);
+    expect(find.byKey(const ValueKey('inspector-section-content')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('inspector-section-geometry')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('inspector-section-typography')),
+        findsOneWidget);
     expect(find.text('Key / Text'), findsOneWidget);
     expect(find.text('Bold'), findsOneWidget);
     expect(find.byType(CanvasSelectionOverlay), findsWidgets);
@@ -107,14 +115,17 @@ void main() {
     expect(undoButton.onPressed, isNotNull);
   });
 
-  testWidgets('table selection exposes the column editor', (tester) async {
+  testWidgets('table selection exposes the normalized column editor',
+      (tester) async {
     await pumpDesktop(tester);
 
     await tester.tap(find.text('Table {{items}}'));
     await tester.pump();
 
     expect(find.text('{{items}}'), findsWidgets);
-    expect(find.text('Table Columns'), findsOneWidget);
+    expect(find.byKey(const ValueKey('inspector-section-table-columns')),
+        findsOneWidget);
+    expect(find.text('TABLE COLUMNS'), findsOneWidget);
     expect(find.byTooltip('Add column'), findsOneWidget);
     expect(find.byTooltip('Remove column'), findsWidgets);
   });

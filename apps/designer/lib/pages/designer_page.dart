@@ -428,291 +428,58 @@ class _DesignerPageState extends State<DesignerPage> {
 
   Widget _rightPanel({bool expandWidth = false}) {
     final selected = _document.selectedElement;
-    if (selected == null) {
-      return const Material(
-        color: DesignerColors.panelBackground,
-        child: Column(
-          children: [
-            PanelHeader(title: 'Inspector'),
-            Expanded(child: Center(child: Text('Select an element to edit'))),
-          ],
-        ),
-      );
-    }
+    final tableColumns = selected?['type'] == 'table'
+        ? (selected?['columns'] as List<dynamic>? ?? const <dynamic>[])
+            .map((value) => Map<String, dynamic>.from(value as Map))
+            .toList()
+        : const <Map<String, dynamic>>[];
 
-    final style = _style(selected);
-    return Material(
-      color: DesignerColors.panelBackground,
-      child: Column(
-        children: [
-          const PanelHeader(title: 'Inspector'),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(DesignerSpacing.md),
-              children: [
-                TextFormField(
-                  key: ValueKey('key-${selected['id']}-${selected['key']}'),
-                  initialValue: selected['key']?.toString() ?? '',
-                  decoration: const InputDecoration(labelText: 'Key / Text'),
-                  onFieldSubmitted: (value) => setState(
-                    () => _document.updateSelected('key', value),
-                  ),
-                ),
-                const SizedBox(height: DesignerSpacing.sm),
-                Row(
-                  children: [
-                    Expanded(child: _numberField(selected, 'x', 'X')),
-                    const SizedBox(width: DesignerSpacing.sm),
-                    Expanded(child: _numberField(selected, 'y', 'Y')),
-                  ],
-                ),
-                const SizedBox(height: DesignerSpacing.sm),
-                Row(
-                  children: [
-                    Expanded(child: _numberField(selected, 'w', 'W')),
-                    const SizedBox(width: DesignerSpacing.sm),
-                    Expanded(child: _numberField(selected, 'h', 'H')),
-                  ],
-                ),
-                Row(
-                  children: [
-                    const Text('Font'),
-                    Expanded(
-                      child: Slider(
-                        value: _number(style['fontSize'], fallback: 10)
-                            .clamp(6, 30)
-                            .toDouble(),
-                        min: 6,
-                        max: 30,
-                        onChanged: (value) => setState(
-                          () => _document.updateSelectedStyle(
-                            'fontSize',
-                            value,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Bold'),
-                  value: style['bold'] == true,
-                  onChanged: (value) => setState(
-                    () => _document.updateSelectedStyle(
-                      'bold',
-                      value == true,
-                    ),
-                  ),
-                ),
-                DropdownButtonFormField<String>(
-                  // Flutter 3.32.7 still requires `value` here.
-                  // ignore: deprecated_member_use
-                  value: _validAlignment(style['align']),
-                  decoration: const InputDecoration(labelText: 'Alignment'),
-                  items: const [
-                    DropdownMenuItem(value: 'left', child: Text('Left')),
-                    DropdownMenuItem(value: 'center', child: Text('Center')),
-                    DropdownMenuItem(value: 'right', child: Text('Right')),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(
-                      () => _document.updateSelectedStyle('align', value),
-                    );
-                  },
-                ),
-                if (selected['type'] == 'table') ...[
-                  const Divider(height: 28),
-                  _tableColumnEditor(selected),
-                ],
-                const SizedBox(height: DesignerSpacing.lg),
-                FilledButton.tonalIcon(
-                  icon: const Icon(Icons.delete),
-                  label: const Text('Delete element'),
-                  onPressed: () => setState(_document.deleteSelected),
-                ),
-              ],
-            ),
-          ),
-        ],
+    return DesignerInspector(
+      element: selected,
+      tableColumns: tableColumns,
+      onContentSubmitted: (value) => setState(
+        () => _document.updateSelected('key', value),
       ),
-    );
-  }
-
-  Widget _tableColumnEditor(Map<String, dynamic> selected) {
-    final columns = (selected['columns'] as List<dynamic>? ?? const <dynamic>[])
-        .map((value) => Map<String, dynamic>.from(value as Map))
-        .toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Table Columns',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            IconButton(
-              tooltip: 'Add column',
-              onPressed: () => setState(_document.addTableColumn),
-              icon: const Icon(Icons.add),
-            ),
-          ],
-        ),
-        for (var index = 0; index < columns.length; index++)
-          _columnCard(columns[index], index, columns.length),
-      ],
-    );
-  }
-
-  Widget _columnCard(
-    Map<String, dynamic> column,
-    int index,
-    int columnCount,
-  ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    key: ValueKey('column-key-$index-${column['key']}'),
-                    initialValue: column['key']?.toString() ?? '',
-                    decoration: const InputDecoration(labelText: 'key'),
-                    onFieldSubmitted: (value) => setState(
-                      () => _document.updateTableColumn(index, 'key', value),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    key: ValueKey('column-label-$index-${column['label']}'),
-                    initialValue: column['label']?.toString() ?? '',
-                    decoration: const InputDecoration(labelText: 'label'),
-                    onFieldSubmitted: (value) => setState(
-                      () => _document.updateTableColumn(index, 'label', value),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    key: ValueKey('column-width-$index-${column['width']}'),
-                    initialValue: '${column['width'] ?? 1}',
-                    decoration: const InputDecoration(labelText: 'width'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    onFieldSubmitted: (value) => setState(
-                      () => _document.updateTableColumn(index, 'width', value),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    // Flutter 3.32.7 still requires `value` here.
-                    // ignore: deprecated_member_use
-                    value: _validAlignment(
-                      column['alignment'] ?? column['align'],
-                    ),
-                    decoration: const InputDecoration(labelText: 'alignment'),
-                    items: const [
-                      DropdownMenuItem(value: 'left', child: Text('Left')),
-                      DropdownMenuItem(value: 'center', child: Text('Center')),
-                      DropdownMenuItem(value: 'right', child: Text('Right')),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(
-                        () => _document.updateTableColumn(
-                          index,
-                          'alignment',
-                          value,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                IconButton(
-                  tooltip: 'Move column up',
-                  onPressed: index > 0
-                      ? () => setState(
-                            () =>
-                                _document.reorderTableColumn(index, index - 1),
-                          )
-                      : null,
-                  icon: const Icon(Icons.arrow_upward),
-                ),
-                IconButton(
-                  tooltip: 'Move column down',
-                  onPressed: index < columnCount - 1
-                      ? () => setState(
-                            () =>
-                                _document.reorderTableColumn(index, index + 1),
-                          )
-                      : null,
-                  icon: const Icon(Icons.arrow_downward),
-                ),
-                IconButton(
-                  tooltip: 'Remove column',
-                  onPressed: () => setState(
-                    () => _document.removeTableColumn(index),
-                  ),
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ),
-          ],
-        ),
+      onGeometrySubmitted: _updateSelectedGeometry,
+      onFontSizeSubmitted: (value) => setState(
+        () => _document.updateSelectedStyle('fontSize', value),
       ),
+      onBoldChanged: (value) => setState(
+        () => _document.updateSelectedStyle('bold', value),
+      ),
+      onAlignmentChanged: (value) => setState(
+        () => _document.updateSelectedStyle('align', value),
+      ),
+      onAddTableColumn: () => setState(_document.addTableColumn),
+      onUpdateTableColumn: (index, key, value) => setState(
+        () => _document.updateTableColumn(index, key, value),
+      ),
+      onMoveTableColumn: (from, to) => setState(
+        () => _document.reorderTableColumn(from, to),
+      ),
+      onRemoveTableColumn: (index) => setState(
+        () => _document.removeTableColumn(index),
+      ),
+      onDelete: () => setState(_document.deleteSelected),
     );
   }
 
-  Widget _numberField(
-    Map<String, dynamic> element,
-    String key,
-    String label,
-  ) {
-    return TextFormField(
-      key: ValueKey('$key-${element['id']}-${element[key]}'),
-      initialValue: _number(element[key]).toStringAsFixed(1),
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(labelText: label),
-      onFieldSubmitted: (value) {
-        final parsed = double.tryParse(value);
-        if (parsed == null) return;
-        setState(() {
-          final selected = _document.selectedElement;
-          if (selected == null) return;
-          if (key == 'x' || key == 'y') {
-            _document.moveSelected(
-              key == 'x' ? parsed : _number(selected['x']),
-              key == 'y' ? parsed : _number(selected['y']),
-            );
-          } else {
-            _document.resizeSelected(
-              key == 'w' ? parsed : _number(selected['w']),
-              key == 'h' ? parsed : _number(selected['h']),
-            );
-          }
-        });
-      },
-    );
+  void _updateSelectedGeometry(String key, double value) {
+    setState(() {
+      final selected = _document.selectedElement;
+      if (selected == null) return;
+      if (key == 'x' || key == 'y') {
+        _document.moveSelected(
+          key == 'x' ? value : _number(selected['x']),
+          key == 'y' ? value : _number(selected['y']),
+        );
+      } else {
+        _document.resizeSelected(
+          key == 'w' ? value : _number(selected['w']),
+          key == 'h' ? value : _number(selected['h']),
+        );
+      }
+    });
   }
 
   void _addElement(String type) {
@@ -1161,13 +928,6 @@ class _DesignerPageState extends State<DesignerPage> {
 
   String _validPaperType(String value) =>
       const {'thermal', 'a4', 'pdf'}.contains(value) ? value : 'pdf';
-
-  String _validAlignment(dynamic value) {
-    final alignment = value?.toString() ?? 'left';
-    return const {'left', 'center', 'right'}.contains(alignment)
-        ? alignment
-        : 'left';
-  }
 
   Alignment _flutterAlignment(String? value) {
     switch (value) {
