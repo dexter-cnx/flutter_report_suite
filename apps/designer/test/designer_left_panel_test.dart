@@ -61,7 +61,8 @@ void main() {
       ),
     );
 
-    expect(tester.getSize(find.byType(ToolPanelItem)).height, greaterThanOrEqualTo(40));
+    expect(tester.getSize(find.byType(ToolPanelItem)).height,
+        greaterThanOrEqualTo(40));
     expect(find.byIcon(Icons.add), findsOneWidget);
 
     await tester.tap(find.byType(ToolPanelItem));
