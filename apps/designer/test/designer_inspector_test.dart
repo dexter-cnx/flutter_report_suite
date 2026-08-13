@@ -162,6 +162,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('TABLE COLUMNS'), findsOneWidget);
-    expect(find.text('Item'), findsOneWidget);
+    expect(find.byType(TableColumnEditor), findsOneWidget);
+    expect(find.byKey(const ValueKey('table-column-card-0')), findsOneWidget);
+    expect(find.text('1 column · widths are relative'), findsOneWidget);
   });
 }
