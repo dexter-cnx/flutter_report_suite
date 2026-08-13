@@ -4,21 +4,26 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import '../design_system/design_system.dart';
+import 'esc_pos_preview_panel.dart';
 
 typedef PreviewContentBuilder = Widget Function(Uint8List bytes);
 typedef SystemPrintAction = Future<void> Function(Uint8List bytes);
+
+enum PreviewOutputMode { pdf, escPos }
 
 class PreviewWorkspacePage extends StatefulWidget {
   const PreviewWorkspacePage({
     super.key,
     required this.pdfBytes,
     required this.paper,
+    this.escPosBytes = const <int>[],
     this.title = 'Preview',
     this.previewBuilder,
     this.onSystemPrint,
   });
 
   final Uint8List pdfBytes;
+  final List<int> escPosBytes;
   final Map<String, dynamic> paper;
   final String title;
   final PreviewContentBuilder? previewBuilder;
@@ -29,6 +34,7 @@ class PreviewWorkspacePage extends StatefulWidget {
 }
 
 class _PreviewWorkspacePageState extends State<PreviewWorkspacePage> {
+  PreviewOutputMode _mode = PreviewOutputMode.pdf;
   String? _printError;
 
   @override
@@ -85,18 +91,23 @@ class _PreviewWorkspacePageState extends State<PreviewWorkspacePage> {
               style: DesignerTypography.appTitle,
             ),
           ),
-          ToolbarButton(
-            key: const ValueKey('preview-system-print-button'),
-            icon: Icons.print_outlined,
-            tooltip: 'System Print',
-            onPressed: _systemPrint,
-          ),
+          if (_mode == PreviewOutputMode.pdf)
+            ToolbarButton(
+              key: const ValueKey('preview-system-print-button'),
+              icon: Icons.print_outlined,
+              tooltip: 'System Print',
+              onPressed: _systemPrint,
+            ),
         ],
       ),
     );
   }
 
   Widget _preview() {
+    if (_mode == PreviewOutputMode.escPos) {
+      return EscPosPreviewPanel(bytes: widget.escPosBytes);
+    }
+
     final override = widget.previewBuilder;
     if (override != null) return override(widget.pdfBytes);
 
@@ -123,11 +134,41 @@ class _PreviewWorkspacePageState extends State<PreviewWorkspacePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('PDF / System Print',
-                          style: DesignerTypography.body),
+                      SegmentedButton<PreviewOutputMode>(
+                        key: const ValueKey('preview-output-mode'),
+                        segments: [
+                          const ButtonSegment(
+                            value: PreviewOutputMode.pdf,
+                            label: Text('PDF'),
+                            icon: Icon(Icons.picture_as_pdf_outlined),
+                          ),
+                          if (widget.escPosBytes.isNotEmpty)
+                            const ButtonSegment(
+                              value: PreviewOutputMode.escPos,
+                              label: Text('ESC/POS'),
+                              icon: Icon(Icons.receipt_long_outlined),
+                            ),
+                        ],
+                        selected: {_mode},
+                        onSelectionChanged: (selection) {
+                          setState(() {
+                            _mode = selection.single;
+                            _printError = null;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: DesignerSpacing.sm),
+                      Text(
+                        _mode == PreviewOutputMode.pdf
+                            ? 'PDF / System Print'
+                            : 'ESC/POS / Rendered bytes',
+                        style: DesignerTypography.body,
+                      ),
                       const SizedBox(height: DesignerSpacing.xs),
                       Text(
-                        'Uses the generated PDF from report_engine. Printing is delegated to the platform print dialog.',
+                        _mode == PreviewOutputMode.pdf
+                            ? 'Uses the generated PDF from report_engine. Printing is delegated to the platform print dialog.'
+                            : 'Uses bytes rendered by report_engine. Sending requires an explicit EscPosTransport.',
                         style: DesignerTypography.helper,
                       ),
                     ],
@@ -161,10 +202,17 @@ class _PreviewWorkspacePageState extends State<PreviewWorkspacePage> {
   }
 
   Widget _statusBar() {
+    final isPdf = _mode == PreviewOutputMode.pdf;
     return DesignerStatusBar(
       leading: Text(_paperDescription()),
-      center: const Text('PDF preview · platform print available'),
-      trailing: Text('${widget.pdfBytes.length} bytes'),
+      center: Text(
+        isPdf
+            ? 'PDF preview · platform print available'
+            : 'ESC/POS preview · transport not selected',
+      ),
+      trailing: Text(
+        '${isPdf ? widget.pdfBytes.length : widget.escPosBytes.length} bytes',
+      ),
     );
   }
 
