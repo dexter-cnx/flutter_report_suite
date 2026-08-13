@@ -10,3 +10,4 @@ export 'designer_shell.dart';
 export 'designer_spacing.dart';
 export 'designer_theme.dart';
 export 'designer_typography.dart';
+export 'template_gallery_primitives.dart';
