@@ -4,6 +4,7 @@ export 'designer_controls.dart';
 export 'designer_elevation.dart';
 export 'designer_inspector.dart';
 export 'designer_layout.dart';
+export 'designer_left_panel.dart';
 export 'designer_radius.dart';
 export 'designer_shell.dart';
 export 'designer_spacing.dart';

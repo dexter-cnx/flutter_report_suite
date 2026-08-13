@@ -38,6 +38,7 @@ class _DesignerPageState extends State<DesignerPage> {
   String? _templateId;
   bool _storageReady = false;
   bool _mediumElementsVisible = false;
+  DesignerLeftPanelMode _leftPanelMode = DesignerLeftPanelMode.elements;
 
   final Map<String, dynamic> _mockData = {
     'shop': {'name': 'ร้าน Dexter Coffee', 'branch': 'นิมมาน'},
@@ -217,71 +218,188 @@ class _DesignerPageState extends State<DesignerPage> {
   }
 
   Widget _leftPanel({bool expandWidth = false}) {
-    final paper = _document.paper;
-    final paperType = paper['type']?.toString() ?? 'thermal';
-
-    return Material(
-      color: DesignerColors.panelBackground,
-      child: ListView(
-        children: [
-          const PanelHeader(title: 'Elements'),
-          _addButton('Text', Icons.text_fields, 'text'),
-          _addButton('Dynamic {{field}}', Icons.data_object, 'dynamic_text'),
-          _addButton('Line', Icons.horizontal_rule, 'line'),
-          _addButton('Table {{items}}', Icons.table_chart, 'table'),
-          _addButton('QR Code', Icons.qr_code, 'qrcode'),
-          _addButton('Barcode', Icons.view_week, 'barcode'),
-          const Divider(height: 1),
-          const PanelHeader(title: 'Document'),
-          Padding(
-            padding: const EdgeInsets.all(DesignerSpacing.md),
-            child: PropertyDropdown<String>(
-              value: _validPaperType(paperType),
-              label: 'Paper Type',
-              items: const [
-                DropdownMenuItem(value: 'thermal', child: Text('Thermal')),
-                DropdownMenuItem(value: 'a4', child: Text('A4')),
-                DropdownMenuItem(value: 'pdf', child: Text('PDF')),
-              ],
-              onChanged: _changePaperType,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: DesignerSpacing.md,
-            ),
-            child: Text(
-              'Paper width ${_number(paper['widthMm']).toStringAsFixed(1)} mm',
-              style: DesignerTypography.helper,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              DesignerSpacing.sm,
-              DesignerSpacing.sm,
-              DesignerSpacing.sm,
-              DesignerSpacing.md,
-            ),
-            child: Slider(
-              value: _document.zoom,
-              min: 0.5,
-              max: 2,
-              divisions: 15,
-              onChanged: (value) => setState(() => _document.setZoom(value)),
-            ),
-          ),
-        ],
+    return DesignerLeftPanel(
+      mode: _leftPanelMode,
+      onModeChanged: (mode) => setState(() => _leftPanelMode = mode),
+      elements: _elementsPanel(),
+      layers: _layersPanel(),
+      data: const DesignerPanelStateMessage(
+        icon: Icons.account_tree_outlined,
+        title: 'Data explorer is not available yet',
+        message:
+            'Use Dynamic {{field}}, Table {{items}}, QR Code, or Barcode from Elements. Full data-tree binding remains a later model-backed phase.',
       ),
     );
   }
 
-  Widget _addButton(String label, IconData icon, String type) => ListTile(
-        dense: true,
-        minVerticalPadding: 0,
-        leading: Icon(icon, size: 18, color: DesignerColors.textSecondary),
-        title: Text(label, style: DesignerTypography.body),
-        onTap: () => _addElement(type),
+  Widget _elementsPanel() {
+    final paper = _document.paper;
+    final paperType = paper['type']?.toString() ?? 'thermal';
+
+    return ListView(
+      key: const ValueKey('left-panel-elements-content'),
+      children: [
+        const PanelHeader(title: 'Add Element'),
+        _addButton('Text', Icons.text_fields, 'text'),
+        _addButton('Dynamic {{field}}', Icons.data_object, 'dynamic_text'),
+        _addButton('Line', Icons.horizontal_rule, 'line'),
+        _addButton('Table {{items}}', Icons.table_chart, 'table'),
+        _addButton('QR Code', Icons.qr_code, 'qrcode'),
+        _addButton('Barcode', Icons.view_week, 'barcode'),
+        const Divider(height: 1),
+        const PanelHeader(title: 'Document'),
+        Padding(
+          padding: const EdgeInsets.all(DesignerSpacing.md),
+          child: PropertyDropdown<String>(
+            value: _validPaperType(paperType),
+            label: 'Paper Type',
+            items: const [
+              DropdownMenuItem(value: 'thermal', child: Text('Thermal')),
+              DropdownMenuItem(value: 'a4', child: Text('A4')),
+              DropdownMenuItem(value: 'pdf', child: Text('PDF')),
+            ],
+            onChanged: _changePaperType,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignerSpacing.md,
+          ),
+          child: Text(
+            'Paper width ${_number(paper['widthMm']).toStringAsFixed(1)} mm',
+            style: DesignerTypography.helper,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            DesignerSpacing.sm,
+            DesignerSpacing.sm,
+            DesignerSpacing.sm,
+            DesignerSpacing.md,
+          ),
+          child: Slider(
+            value: _document.zoom,
+            min: 0.5,
+            max: 2,
+            divisions: 15,
+            onChanged: (value) => setState(() => _document.setZoom(value)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _layersPanel() {
+    if (_document.elements.isEmpty) {
+      return const DesignerPanelStateMessage(
+        icon: Icons.layers_outlined,
+        title: 'No layers yet',
+        message:
+            'Add an element first. Existing report elements will appear here.',
       );
+    }
+
+    return ListView(
+      key: const ValueKey('left-panel-layers-content'),
+      children: [
+        const PanelHeader(title: 'Layers'),
+        ..._document.elements.reversed.map(_layerButton),
+      ],
+    );
+  }
+
+  Widget _layerButton(Map<String, dynamic> element) {
+    final id = element['id']?.toString();
+    final selected = id != null && id == _document.selectedId;
+    final type = element['type']?.toString() ?? 'element';
+    final key = element['key']?.toString() ?? '';
+
+    return Material(
+      color: selected
+          ? DesignerColors.surfaceSelected
+          : DesignerColors.panelBackground,
+      child: InkWell(
+        key: ValueKey('layer-${id ?? type}'),
+        onTap:
+            id == null ? null : () => setState(() => _document.selectedId = id),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignerSpacing.md,
+            vertical: DesignerSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                _elementTypeIcon(type),
+                size: 18,
+                color: selected
+                    ? DesignerColors.primary
+                    : DesignerColors.textSecondary,
+              ),
+              const SizedBox(width: DesignerSpacing.sm),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _elementTypeLabel(type),
+                      style: DesignerTypography.body,
+                    ),
+                    if (key.isNotEmpty)
+                      Text(
+                        key,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DesignerTypography.helper,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _addButton(String label, IconData icon, String type) => ToolPanelItem(
+        key: ValueKey('tool-$type'),
+        label: label,
+        icon: icon,
+        onPressed: () => _addElement(type),
+      );
+
+  IconData _elementTypeIcon(String type) {
+    switch (type) {
+      case 'text':
+        return Icons.text_fields;
+      case 'dynamic_text':
+        return Icons.data_object;
+      case 'line':
+        return Icons.horizontal_rule;
+      case 'table':
+        return Icons.table_chart;
+      case 'qrcode':
+        return Icons.qr_code;
+      case 'barcode':
+        return Icons.view_week;
+      default:
+        return Icons.widgets_outlined;
+    }
+  }
+
+  String _elementTypeLabel(String type) {
+    switch (type) {
+      case 'dynamic_text':
+        return 'Dynamic Text';
+      case 'qrcode':
+        return 'QR Code';
+      default:
+        if (type.isEmpty) return 'Element';
+        return '${type[0].toUpperCase()}${type.substring(1)}';
+    }
+  }
 
   Widget _canvas() {
     final paper = _document.paper;
