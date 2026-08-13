@@ -29,20 +29,24 @@ void main() {
     expect(find.text('4x6 Sticker'), findsOneWidget);
     expect(find.byType(DesignerAppShell), findsOneWidget);
     expect(find.byType(TemplateCard), findsNWidgets(5));
-    expect(find.byKey(const ValueKey('template-gallery-grid-4')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('template-gallery-grid-4')), findsOneWidget);
   });
 
   testWidgets('gallery uses 4, 2, and 1 responsive columns', (tester) async {
     await pumpAtWidth(tester, 1200);
-    expect(find.byKey(const ValueKey('template-gallery-grid-4')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('template-gallery-grid-4')), findsOneWidget);
 
     tester.view.physicalSize = const Size(900, 900);
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('template-gallery-grid-2')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('template-gallery-grid-2')), findsOneWidget);
 
     tester.view.physicalSize = const Size(600, 900);
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('template-gallery-grid-1')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('template-gallery-grid-1')), findsOneWidget);
   });
 
   testWidgets('blank template opens a new unsaved designer', (tester) async {
