@@ -148,6 +148,7 @@ apps/designer/lib/design_system/
 ├── designer_theme.dart
 ├── designer_controls.dart
 ├── designer_shell.dart
+├── designer_inspector.dart
 └── canvas_primitives.dart
 ```
 
@@ -185,6 +186,15 @@ InlineAlert
 
 Property text inputs are designed to stay synchronized with model updates such as selection changes, undo, and document loading. Compact controls use compact-specific text metrics/padding so the 28 px control contract does not clip text.
 
+`designer_inspector.dart` composes those primitives into the live property editor. It intentionally exposes only fields that the shared report model already persists and renders:
+
+```text
+Content      key / text
+Geometry     X / Y / W / H in mm
+Typography   font size / bold / alignment
+Table        key / label / width / alignment per column
+```
+
 The Designer does not force a non-bundled Inter font. Platform/default typography remains in use until a redistribution-safe font asset is explicitly bundled and registered.
 
 ## 7. Live `DesignerPage` composition
@@ -208,12 +218,16 @@ DesignerAppShell
 │       └── CanvasPage
 │           ├── CanvasGuideOverlay
 │           └── CanvasSelectionOverlay × element
-├── Inspector
+├── DesignerInspector
+│   ├── Content
+│   ├── Geometry
+│   ├── Typography
+│   └── Table Columns (table elements only)
 └── DesignerStatusBar
     └── ZoomControl
 ```
 
-The page still delegates schema/state behavior to `DesignerDocumentController`; the migration is primarily presentation and composition.
+The page still delegates schema/state behavior to `DesignerDocumentController`; the visual widgets translate normalized control callbacks into the same controller mutation paths used before the UI migration.
 
 ### Responsive behavior
 
@@ -306,9 +320,11 @@ The selected child remains non-positioned inside the overlay so the child establ
 
 The left side uses normalized `PanelHeader` and `PropertyDropdown` components for Elements/Document sections while retaining the existing add-element commands.
 
-The right Inspector has moved into the canonical 320 px shell. The current migration intentionally preserves existing field behavior; deeper conversion of every inspector field into `PropertyInput`, `NumberPropertyInput`, `PropertyToggle`, and structured `InspectorSection` components is the next UI phase.
+The right side now uses `DesignerInspector` in the live `DesignerPage`, not a parallel set of page-local `TextFormField`, `Slider`, `CheckboxListTile`, and `DropdownButtonFormField` controls. Content, geometry, typography, and table-column controls are grouped into collapsible `InspectorSection`s and reuse the normalized property primitives.
 
-Table column editing remains model-compatible with existing metadata. Stitch-only concepts such as merged cells or richer pagination must not be exposed until the report model and renderer support them.
+Controller behavior remains the source of truth. Content edits still call `updateSelected`, font/bold/alignment still call `updateSelectedStyle`, geometry still routes through `moveSelected`/`resizeSelected`, and table actions still call `addTableColumn`, `updateTableColumn`, `reorderTableColumn`, and `removeTableColumn`.
+
+Table column editing remains model-compatible with existing metadata. Stitch-only concepts such as fill/stroke, expressions, merged cells, cell selection, or richer pagination are not exposed until the report model and renderer support them.
 
 ## 10. Template lifecycle
 
@@ -592,6 +608,7 @@ Relevant tests include:
 ```text
 apps/designer/test/design_system_test.dart
 apps/designer/test/designer_shell_canvas_test.dart
+apps/designer/test/designer_inspector_test.dart
 apps/designer/test/designer_page_test.dart
 apps/designer/test/designer_document_controller_test.dart
 ```
@@ -603,12 +620,15 @@ Coverage protects:
 - ruler marks
 - selection handle count/size behavior
 - selected child sizing
-- live DesignerPage use of shell/canvas primitives
+- isolated DesignerInspector empty/text/table states
+- live DesignerPage use of shell/canvas/inspector primitives
+- Content / Geometry / Typography section wiring
+- table-column section wiring
 - medium-width Elements panel collapsed by default and toggleable
 - compact layout below 1024 px
 - SafeArea presence for the custom toolbar
 - add/select/edit behavior
-- table-column editor
+- table-column editor behavior
 - JSON schema visibility
 - undo/history controller behavior
 
@@ -717,7 +737,7 @@ Do not solve transport problems in rendering code, and do not solve UI compositi
 
 ## 30. Software-validated areas
 
-The project has automated/software coverage for PDF generation, Thai PDF fonts, thermal/A4 geometry, pagination, ESC/POS Thai conversion/raster fallback, quick-receipt layout, transport abstractions, discovery composition, Sunmi adapter behavior through fakes, template persistence/editing, Designer history behavior, and the normalized shell/canvas UI contracts.
+The project has automated/software coverage for PDF generation, Thai PDF fonts, thermal/A4 geometry, pagination, ESC/POS Thai conversion/raster fallback, quick-receipt layout, transport abstractions, discovery composition, Sunmi adapter behavior through fakes, template persistence/editing, Designer history behavior, and the normalized shell/canvas/inspector UI contracts.
 
 ## 31. Hardware evidence still matters
 
