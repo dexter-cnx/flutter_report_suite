@@ -156,7 +156,8 @@ class _TemplateGalleryPageState extends State<TemplateGalleryPage> {
     ({String title, String asset, IconData icon}) item,
   ) async {
     try {
-      final template = await TemplateStorageService().loadFromAssets(item.asset);
+      final template =
+          await TemplateStorageService().loadFromAssets(item.asset);
       if (!context.mounted) return;
       _openDesigner(
         context,
