@@ -123,7 +123,8 @@ class _PreviewWorkspacePageState extends State<PreviewWorkspacePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('PDF / System Print', style: DesignerTypography.body),
+                      Text('PDF / System Print',
+                          style: DesignerTypography.body),
                       const SizedBox(height: DesignerSpacing.xs),
                       Text(
                         'Uses the generated PDF from report_engine. Printing is delegated to the platform print dialog.',
