@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:printing/printing.dart';
 import 'package:report_engine/report_engine.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
@@ -11,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import '../controllers/designer_document_controller.dart';
 import '../design_system/design_system.dart';
 import '../services/template_file_exporter.dart';
+import 'preview_workspace_page.dart';
 
 class DesignerPage extends StatefulWidget {
   const DesignerPage({
@@ -967,9 +967,12 @@ class _DesignerPageState extends State<DesignerPage> {
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => Scaffold(
-            appBar: AppBar(title: const Text('Preview')),
-            body: PdfPreview(build: (_) async => pdf),
+          builder: (_) => PreviewWorkspacePage(
+            pdfBytes: pdf,
+            paper: Map<String, dynamic>.from(_document.paper),
+            title: _templateId == null
+                ? 'Report Preview'
+                : 'Report Preview — $_templateId',
           ),
         ),
       );
