@@ -54,150 +54,160 @@ class DesignerInspector extends StatelessWidget {
       selected['style'] as Map? ?? const <String, dynamic>{},
     );
 
-    return Material(
-      color: DesignerColors.panelBackground,
-      child: Column(
-        children: [
-          const PanelHeader(title: 'Inspector'),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                InspectorSection(
-                  key: const ValueKey('inspector-section-content'),
-                  title: 'Content',
-                  child: PropertyInput(
-                    fieldId: 'element-content',
-                    label: 'Key / Text',
-                    initialValue: selected['key']?.toString() ?? '',
-                    onSubmitted: onContentSubmitted,
-                  ),
-                ),
-                InspectorSection(
-                  key: const ValueKey('inspector-section-geometry'),
-                  title: 'Geometry',
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _geometryInput(
-                              selected,
-                              'x',
-                              'X',
-                            ),
-                          ),
-                          const SizedBox(width: DesignerSpacing.sm),
-                          Expanded(
-                            child: _geometryInput(
-                              selected,
-                              'y',
-                              'Y',
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: DesignerSpacing.sm),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _geometryInput(
-                              selected,
-                              'w',
-                              'W',
-                            ),
-                          ),
-                          const SizedBox(width: DesignerSpacing.sm),
-                          Expanded(
-                            child: _geometryInput(
-                              selected,
-                              'h',
-                              'H',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                InspectorSection(
-                  key: const ValueKey('inspector-section-typography'),
-                  title: 'Typography',
-                  child: Column(
-                    children: [
-                      NumberPropertyInput(
-                        label: 'Font Size',
-                        unit: 'pt',
-                        value: _number(style['fontSize'], fallback: 10),
-                        onSubmitted: onFontSizeSubmitted,
-                      ),
-                      const SizedBox(height: DesignerSpacing.sm),
-                      PropertyToggle(
-                        label: 'Bold',
-                        value: style['bold'] == true,
-                        onChanged: onBoldChanged,
-                      ),
-                      const SizedBox(height: DesignerSpacing.sm),
-                      PropertyDropdown<String>(
-                        label: 'Alignment',
-                        value: _validAlignment(style['align']),
-                        items: const [
-                          DropdownMenuItem(value: 'left', child: Text('Left')),
-                          DropdownMenuItem(
-                            value: 'center',
-                            child: Text('Center'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'right',
-                            child: Text('Right'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) onAlignmentChanged(value);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                if (selected['type'] == 'table')
+    return KeyedSubtree(
+      key: ValueKey('designer-inspector-${selected['id']}'),
+      child: Material(
+        color: DesignerColors.panelBackground,
+        child: Column(
+          children: [
+            const PanelHeader(title: 'Inspector'),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
                   InspectorSection(
-                    key: const ValueKey('inspector-section-table-columns'),
-                    title: 'Table Columns',
-                    trailing: IconButton(
-                      tooltip: 'Add column',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: onAddTableColumn,
-                      icon: const Icon(Icons.add, size: 18),
+                    key: const ValueKey('inspector-section-content'),
+                    title: 'Content',
+                    child: PropertyInput(
+                      fieldId: 'element-content',
+                      label: 'Key / Text',
+                      initialValue: selected['key']?.toString() ?? '',
+                      onSubmitted: onContentSubmitted,
                     ),
+                  ),
+                  InspectorSection(
+                    key: const ValueKey('inspector-section-geometry'),
+                    title: 'Geometry',
                     child: Column(
                       children: [
-                        for (var index = 0;
-                            index < tableColumns.length;
-                            index++)
-                          _TableColumnCard(
-                            column: tableColumns[index],
-                            index: index,
-                            count: tableColumns.length,
-                            onUpdate: onUpdateTableColumn,
-                            onMove: onMoveTableColumn,
-                            onRemove: onRemoveTableColumn,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _geometryInput(
+                                selected,
+                                'x',
+                                'X',
+                              ),
+                            ),
+                            const SizedBox(width: DesignerSpacing.sm),
+                            Expanded(
+                              child: _geometryInput(
+                                selected,
+                                'y',
+                                'Y',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: DesignerSpacing.sm),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _geometryInput(
+                                selected,
+                                'w',
+                                'W',
+                              ),
+                            ),
+                            const SizedBox(width: DesignerSpacing.sm),
+                            Expanded(
+                              child: _geometryInput(
+                                selected,
+                                'h',
+                                'H',
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
-                Padding(
-                  padding: const EdgeInsets.all(DesignerSpacing.md),
-                  child: FilledButton.tonalIcon(
-                    key: const ValueKey('delete-element-button'),
-                    icon: const Icon(Icons.delete),
-                    label: const Text('Delete element'),
-                    onPressed: onDelete,
+                  InspectorSection(
+                    key: const ValueKey('inspector-section-typography'),
+                    title: 'Typography',
+                    child: Column(
+                      children: [
+                        NumberPropertyInput(
+                          label: 'Font Size',
+                          unit: 'pt',
+                          value: _number(style['fontSize'], fallback: 10),
+                          onSubmitted: (value) {
+                            if (value.isFinite && value >= 6 && value <= 30) {
+                              onFontSizeSubmitted(value);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: DesignerSpacing.sm),
+                        PropertyToggle(
+                          label: 'Bold',
+                          value: style['bold'] == true,
+                          onChanged: onBoldChanged,
+                        ),
+                        const SizedBox(height: DesignerSpacing.sm),
+                        PropertyDropdown<String>(
+                          label: 'Alignment',
+                          value: _validAlignment(style['align']),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'left',
+                              child: Text('Left'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'center',
+                              child: Text('Center'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'right',
+                              child: Text('Right'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) onAlignmentChanged(value);
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  if (selected['type'] == 'table')
+                    InspectorSection(
+                      key: const ValueKey('inspector-section-table-columns'),
+                      title: 'Table Columns',
+                      trailing: IconButton(
+                        tooltip: 'Add column',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: onAddTableColumn,
+                        icon: const Icon(Icons.add, size: 18),
+                      ),
+                      child: Column(
+                        children: [
+                          for (var index = 0;
+                              index < tableColumns.length;
+                              index++)
+                            _TableColumnCard(
+                              column: tableColumns[index],
+                              index: index,
+                              count: tableColumns.length,
+                              onUpdate: onUpdateTableColumn,
+                              onMove: onMoveTableColumn,
+                              onRemove: onRemoveTableColumn,
+                            ),
+                        ],
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.all(DesignerSpacing.md),
+                    child: FilledButton.tonalIcon(
+                      key: const ValueKey('delete-element-button'),
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Delete element'),
+                      onPressed: onDelete,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
