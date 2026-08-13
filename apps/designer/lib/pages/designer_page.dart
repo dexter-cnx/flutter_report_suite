@@ -294,7 +294,8 @@ class _DesignerPageState extends State<DesignerPage> {
       return const DesignerPanelStateMessage(
         icon: Icons.layers_outlined,
         title: 'No layers yet',
-        message: 'Add an element first. Existing report elements will appear here.',
+        message:
+            'Add an element first. Existing report elements will appear here.',
       );
     }
 
@@ -319,9 +320,8 @@ class _DesignerPageState extends State<DesignerPage> {
           : DesignerColors.panelBackground,
       child: InkWell(
         key: ValueKey('layer-${id ?? type}'),
-        onTap: id == null
-            ? null
-            : () => setState(() => _document.selectedId = id),
+        onTap:
+            id == null ? null : () => setState(() => _document.selectedId = id),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: DesignerSpacing.md,
