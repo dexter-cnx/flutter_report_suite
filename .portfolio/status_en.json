@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "title": "flutter_report_suite",
+    "tagline": "A reusable Flutter report and PDF generation suite with template-driven rendering.",
+    "status": "active",
+    "version": null
+  },
+  "summary": {
+    "short": "flutter_report_suite provides reusable report_engine components for template-driven PDF rendering, report values, paper configuration, printing, and storage.",
+    "long": "The repository includes reusable report_engine architecture with ReportTemplate, PaperConfig, ReportElement, ReportValueResolver, PdfRenderService, FlutterReportPrinter, template storage, JSON templates, and Thai font support."
+  },
+  "highlights": ["Template-driven reports", "Reusable PDF render service", "Print support", "Thai font support"],
+  "tech": ["Dart", "Flutter", "PDF"],
+  "links": {"repository": "https://github.com/dexter-cnx/flutter_report_suite", "homepage": null, "package": null, "docs": null, "demo": null},
+  "updatedAt": "2026-08-27T00:00:00Z"
+}
