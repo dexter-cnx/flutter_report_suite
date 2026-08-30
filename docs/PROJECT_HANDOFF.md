@@ -4,7 +4,7 @@ Repository: `dexter-cnx/flutter_report_suite`
 
 Reference Flutter toolchain: **Flutter 3.32.7**
 
-Last updated: **2026-08-13**
+Last updated: **2026-08-30**
 
 ## Mission
 
@@ -727,15 +727,382 @@ Architecture guardrails remain:
 
 ---
 
+# P10 — Printing Architecture & Printer Profiles
+
+**Status: 🟡 PLANNED — added 2026-08-30**
+
+This roadmap is informed by useful concepts seen in `nitro_printing`, but Flutter Report Suite should preserve its own responsibility boundary: **report/template/layout/rendering is the core product; printer transport and platform integration are separate layers.** Do not replace the Dart report engine with a native/FFI printing core merely to mirror another package.
+
+## P10.1 — Formalize renderer / transport separation — P0
+
+Preserve and make explicit the pipeline:
+
+```text
+ReportTemplate
+    ↓
+ReportDocument / resolved data
+    ↓
+Renderer
+    ├── PDF
+    ├── ESC/POS
+    ├── Raster/Image
+    └── ZPL [future]
+    ↓
+ReportArtifact
+    ↓
+Printer transport / system print / file export
+```
+
+Requirements:
+
+- rendering must never imply transport I/O
+- report templates must not contain plugin/native printer objects
+- transport packages/adapters must consume rendered artifacts rather than own document layout
+- printer discovery must remain independent from report rendering
+- hardware commands remain capability-gated
+
+Target artifact domain:
+
+```dart
+sealed class ReportArtifact {}
+
+final class PdfArtifact extends ReportArtifact {
+  final Uint8List bytes;
+}
+
+final class EscPosArtifact extends ReportArtifact {
+  final Uint8List bytes;
+}
+
+final class ImageArtifact extends ReportArtifact {
+  final Uint8List bytes;
+}
+```
+
+A future `ZplArtifact` may be added without changing template/data contracts.
+
+## P10.2 — PrinterProfile — P0
+
+Introduce a neutral printer profile model for verified printer-specific behavior rather than scattering model checks and encoding assumptions through renderers/transports.
+
+Candidate fields:
+
+```text
+id
+vendor
+model
+connection hints
+default paper width
+DPI / dots per line
+supported code pages
+Thai encoding strategy
+raster strategy
+cut support
+cash-drawer support
+```
+
+Example intent:
+
+```dart
+PrinterProfile(
+  id: 'epson-tm-t82',
+  type: PrinterType.escPos,
+  paperWidthMm: 80,
+  dotsPerLine: 576,
+  thaiEncoding: ThaiEncoding.cp874,
+  supportsCut: true,
+)
+```
+
+Rules:
+
+- a profile is configuration/evidence, not a raw plugin object
+- do not claim model capabilities without evidence
+- physical-only claims remain `NEEDS PHYSICAL VERIFICATION`
+- Thai encoding/code-table choices should be profile-driven where printer behavior differs
+
+This is the primary follow-up for real Thai thermal-printer compatibility.
+
+## P10.3 — PrinterCapabilities — P0
+
+Add a capability model that can represent both office/system printers and thermal printers.
+
+Candidate capability dimensions:
+
+```text
+PDF/system print
+ESC/POS
+raster
+paper sizes / paper widths
+DPI / dots per line
+color
+copies
+orientation
+duplex
+cut
+cash drawer
+supported code pages
+input tray / media type where available
+```
+
+The Designer and print orchestration layer must consume capabilities instead of inferring support from printer names.
+
+For thermal printers, examples include 58mm/80mm paper support and raster/code-page constraints. For system printers, capabilities may include A4/Letter, duplex, color, copies, trays, and media types when the platform exposes them.
+
+## P10.4 — Unified print settings — P1
+
+Define cross-renderer settings without leaking transport-specific options into the generic model.
+
+Example generic settings:
+
+```text
+paper
+orientation
+copies
+page range
+fit mode
+margins
+```
+
+Thermal/ESC-POS-specific settings remain separate, for example:
+
+```text
+paper width
+encoding/code table
+cut after print
+cash drawer action
+raster density
+```
+
+Do not create a single oversized settings object containing invalid combinations for every backend.
+
+## P10.5 — Typed PrintResult / PrintFailure — P1
+
+Replace stringly-typed failure handling in new printing APIs with explicit domain failures.
+
+Candidate failures:
+
+```dart
+sealed class PrintFailure {}
+
+final class PrinterOffline extends PrintFailure {}
+final class ConnectionTimeout extends PrintFailure {}
+final class UnsupportedEncoding extends PrintFailure {}
+final class PaperWidthMismatch extends PrintFailure {}
+final class RenderFailure extends PrintFailure {}
+final class TransportFailure extends PrintFailure {}
+```
+
+Requirements:
+
+- preserve original exception/cause information for diagnostics
+- distinguish rendering failures from transport failures
+- distinguish unsupported capability/configuration from runtime connection failure
+- make failures useful to both package consumers and Designer UX
+
+## P10.6 — Print job lifecycle — P1
+
+Introduce a small print-job domain rather than a full operating-system spooler.
+
+Suggested states:
+
+```dart
+enum ReportPrintState {
+  queued,
+  rendering,
+  connecting,
+  sending,
+  completed,
+  failed,
+  cancelled,
+}
+```
+
+Expose job events/progress where the underlying transport can provide meaningful progress.
+
+Do not invent pause/resume/progress semantics for transports that cannot support them reliably.
+
+Designer target UX may show real lifecycle stages such as rendering, connecting, sending, completed, and failed.
+
+## P10.7 — Test printer connection — P1
+
+Add a transport-level connection/health check API where technically meaningful.
+
+Target behavior:
+
+- TCP/network printer: socket/transport reachability
+- embedded printer: service availability
+- system printer: platform availability where exposed
+- BLE/USB: adapter/device availability where exposed
+
+Return typed results; do not treat a discovery result as proof that printing will succeed.
+
+## P10.8 — ESC/POS live visual preview — P1
+
+Extend P9B beyond byte/hex inspection to a human-readable thermal-paper preview generated from the same layout/rendering semantics used for actual ESC/POS output.
+
+Designer preview targets:
+
+```text
+A4 / PDF
+80mm thermal
+58mm thermal
+```
+
+Requirements:
+
+- preview must reflect printer profile width/dots when supplied
+- Thai raster/code-page strategy must be represented as faithfully as practical
+- preview must not claim physical output fidelity without printer evidence
+- continue exposing raw byte/hex inspection for diagnostics
+
+## P10.9 — Printer discovery expansion — P2
+
+Keep the existing `PrinterDiscoveryService` abstraction and expand it via source adapters rather than rewriting discovery around one plugin.
+
+Future sources may include:
+
+```text
+mDNS / Bonjour / IPP
+manual TCP 9100
+USB
+Bluetooth Classic
+BLE
+system printers
+embedded printers
+```
+
+Important: Bluetooth Classic support is a separate requirement from the existing BLE discovery implementation.
+
+## P10.10 — Batch generation / batch printing — P2
+
+Support repeated document generation and printing without coupling the template engine to a spooler.
+
+Use cases:
+
+- invoice batch
+- receipt batch
+- label batch
+- CSV/JSON row-driven generation
+
+Target workflow:
+
+```text
+Data source
+  ↓
+rows
+  ↓
+Template + row data
+  ↓
+N ReportArtifacts
+  ↓
+export batch or print queue
+```
+
+Batch APIs must provide per-item results so one failed print does not erase successful item evidence.
+
+## P10.11 — Designer Printer Manager / Print Settings — P2
+
+After the domain APIs stabilize, add Designer UX for:
+
+- discovered/saved printers
+- printer profiles
+- real capabilities
+- connection test
+- paper/profile selection
+- print settings
+- job state/errors
+
+Do not show invented online/connected/cutter/cash-drawer status. UI state must come from real capability/discovery/health-check evidence.
+
+## P10.12 — IPP and ZPL — P3
+
+Reserve architecture for two future outputs/integrations:
+
+### IPP
+
+Useful for standards-based network/system printing and richer printer capabilities where platforms/devices expose them.
+
+### ZPL
+
+Add as a future renderer/artifact for label-printer workflows such as:
+
+- shipping labels
+- warehouse labels
+- inventory/barcode labels
+- logistics tags
+
+ZPL is not required for v1.0.0. The immediate requirement is to ensure current template/rendering architecture does not prevent a future `ZplRenderer`.
+
+## Proposed package direction
+
+Do not perform a package split only for aesthetics. When implementation pressure justifies it, the target responsibility model is:
+
+```text
+flutter_report_suite
+│
+├── report_engine
+│   ├── document
+│   ├── layout
+│   ├── template
+│   └── data binding
+│
+├── report_renderers [logical boundary; package split optional]
+│   ├── pdf
+│   ├── escpos
+│   ├── raster
+│   └── zpl [future]
+│
+├── report_printing [future package if dependency boundaries justify it]
+│   ├── printer
+│   ├── capabilities
+│   ├── profiles
+│   ├── discovery
+│   ├── print_job
+│   └── transports
+│       ├── tcp
+│       ├── system
+│       ├── bluetooth
+│       └── usb
+│
+└── designer
+    ├── template editor
+    ├── print preview
+    ├── printer manager
+    └── print settings
+```
+
+Do not move the report/layout core to FFI/native merely for theoretical call overhead. Current likely bottlenecks remain layout, font shaping, PDF generation, rasterization, encoding conversion, and physical/network printer latency. Native/FFI work requires benchmark evidence before becoming a roadmap item.
+
+## P10 implementation order
+
+1. **P0:** `ReportArtifact` + formal renderer/transport boundaries
+2. **P0:** `PrinterProfile`
+3. **P0:** `PrinterCapabilities`
+4. **P1:** unified print settings
+5. **P1:** typed result/failure domain
+6. **P1:** print job lifecycle
+7. **P1:** connection test API
+8. **P1:** ESC/POS visual preview
+9. **P2:** discovery expansion
+10. **P2:** batch generation/printing
+11. **P2:** Designer Printer Manager
+12. **P3:** IPP
+13. **P3:** ZPL
+
+Every P10 PR must preserve existing PDF/ESC-POS behavior and the six-platform Designer CI matrix unless the PR explicitly changes a supported-platform contract.
+
+---
+
 # Current next action
 
-The Designer Stitch modernization plan ends at **P9**, but the **v1.0.0 release actions remain the current project priority until completion evidence is recorded**.
+The Designer Stitch modernization plan ends at **P9**. **P10 is now defined as the post-release printing architecture roadmap**, while the **v1.0.0 release actions remain the current project priority until completion evidence is recorded**.
 
 1. Create and push the `v1.0.0` tag.
 2. Create the GitHub Release for `v1.0.0`.
 3. Publish `packages/report_engine` to pub.dev.
 4. Keep `report_engine_sunmi` unpublished until its own release decision and dependency strategy are approved.
 5. Record physical printer validation evidence when hardware becomes available.
-6. After the v1 release actions are complete, define the next Designer roadmap scope explicitly; **no P10 is currently defined**.
+6. After the v1 release actions are complete, start P10 from its P0 architecture items: `ReportArtifact`, renderer/transport boundaries, `PrinterProfile`, and `PrinterCapabilities`.
 
 Do not mark tag/release/pub.dev publication complete without concrete repository/pub.dev evidence.
