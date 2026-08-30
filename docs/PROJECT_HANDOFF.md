@@ -4,7 +4,7 @@ Repository: `dexter-cnx/flutter_report_suite`
 
 Reference Flutter toolchain: **Flutter 3.32.7**
 
-Last updated: **2026-08-30**
+Last updated: **2026-08-31**
 
 ## Mission
 
@@ -801,16 +801,18 @@ cut support
 cash-drawer support
 ```
 
-Example intent:
+Example intent (fictional profile; values are illustrative only and do not claim compatibility with real hardware):
 
 ```dart
 PrinterProfile(
-  id: 'epson-tm-t82',
+  id: 'example-thermal-80',
+  vendor: 'Example',
+  model: 'Demo-80',
   type: PrinterType.escPos,
   paperWidthMm: 80,
   dotsPerLine: 576,
-  thaiEncoding: ThaiEncoding.cp874,
-  supportsCut: true,
+  thaiEncoding: ThaiEncoding.rasterImage,
+  supportsCut: false,
 )
 ```
 
@@ -820,6 +822,7 @@ Rules:
 - do not claim model capabilities without evidence
 - physical-only claims remain `NEEDS PHYSICAL VERIFICATION`
 - Thai encoding/code-table choices should be profile-driven where printer behavior differs
+- examples must use fictional/generic profiles unless the values are backed by repository evidence
 
 This is the primary follow-up for real Thai thermal-printer compatibility.
 
@@ -1096,7 +1099,7 @@ Every P10 PR must preserve existing PDF/ESC-POS behavior and the six-platform De
 
 # Current next action
 
-The Designer Stitch modernization plan ends at **P9**. **P10 is now defined as the post-release printing architecture roadmap**, while the **v1.0.0 release actions remain the current project priority until completion evidence is recorded**.
+The Designer Stitch modernization plan ends at **P9**. **P10 is now defined as the separate post-release printing architecture roadmap**, while the **v1.0.0 release actions remain the current project priority until completion evidence is recorded**. See `docs/design/IMPLEMENTATION_PLAN.md` for the completed Stitch sequence and this handoff for P10.
 
 1. Create and push the `v1.0.0` tag.
 2. Create the GitHub Release for `v1.0.0`.
