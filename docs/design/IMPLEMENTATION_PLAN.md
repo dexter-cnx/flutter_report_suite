@@ -2,7 +2,7 @@
 
 This plan turns the normalized Stitch handoff into incremental Flutter changes without rewriting the working report engine or document controller.
 
-Last updated: **2026-08-13**
+Last updated: **2026-08-31**
 
 ## Scope guard
 
@@ -21,7 +21,7 @@ This is a **visual-system migration first**. Existing functional behavior is sou
 - P8 — Table UX expansion: ✅ complete
 - P9 — Unified Preview workspace: ✅ complete
 
-The normalized Stitch plan currently ends at **P9**. **No P10 is defined.**
+The normalized **Stitch UI modernization plan ends at P9**. A separate post-release **P10 — Printing Architecture & Printer Profiles** roadmap is now defined in `docs/PROJECT_HANDOFF.md`; it is not an extension of the Stitch visual migration sequence.
 
 ## P1 — Tokens and theme foundation
 
@@ -153,6 +153,6 @@ Do not infer connected/status/encoding/cutter/drawer support where no contract o
 
 ## Next implementation target
 
-None is defined by this Stitch plan.
+No further target exists **inside the Stitch UI modernization plan**; that sequence is complete at P9.
 
-Before creating another implementation branch, define the next roadmap scope explicitly in documentation. Do not invent a P10 merely to continue the sequence.
+After the v1.0.0 release actions are complete, continue with the separate P10 roadmap defined in `docs/PROJECT_HANDOFF.md`, beginning with its P0 architecture items. Do not treat P10 as a Stitch design phase.
